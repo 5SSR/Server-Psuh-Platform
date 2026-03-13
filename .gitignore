@@ -5,5 +5,5 @@ dist
 .DS_Store
 coverage
 tmp
-pnpm-lock.yaml
 *.log
+.env
