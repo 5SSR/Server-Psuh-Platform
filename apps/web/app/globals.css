@@ -239,3 +239,48 @@ h1 {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
 }
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.actions button {
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--primary);
+  color: #0b1021;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.actions button.secondary {
+  background: var(--ghost);
+  color: var(--text);
+}
+
+.card.nested {
+  margin-top: 12px;
+  background: #0f152b;
+}
+
+.success {
+  color: #66e0a3;
+}
+
+.error {
+  color: #ff8f8f;
+}
+
+.code {
+  background: #0c1223;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  color: #cfe4ff;
+}

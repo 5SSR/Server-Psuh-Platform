@@ -1,12 +1,12 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 import { DisputeStatus } from '@prisma/client';
 
 export class DisputeDecisionDto {
   @IsEnum(DisputeStatus)
-  status: DisputeStatus; // RESOLVED / REJECTED
+  status: DisputeStatus = DisputeStatus.RESOLVED; // 仅支持 RESOLVED/REJECTED
 
-  @IsEnum(['REFUND', 'RELEASE'] as const)
-  action: 'REFUND' | 'RELEASE'; // 纠纷裁决动作：退款或放款
+  @IsIn(['REFUND', 'RELEASE'])
+  action: 'REFUND' | 'RELEASE' = 'REFUND'; // 纠纷裁决动作：退款或放款
 
   @IsOptional()
   @IsString()

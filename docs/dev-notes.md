@@ -45,6 +45,10 @@
 - 01:21 前端骨架：Next.js 增产品列表/详情页、顶部导航；封装 `lib/api` 调用后端 `/products`；样式补充卡片/标签/导航。
 - 01:22 示例数据：新增 Prisma seed 脚本（demo 卖家+3 个商品），命令 `pnpm --filter @idc/api prisma:seed`（需配置 DATABASE_URL）。
 - 01:25 前端认证表单：新增登录/注册页（保存 token 到 localStorage），表单样式完善，回归测试通过。
+- 01:41 修复 TaskModule/Admin 依赖导出，OrderModule 导出 OrderService；处理端口占用，dev 服务正常启动（API:4000，Web:3005）。
+- 01:44 支付模块完善：支付意图/签名/回调（ALIPAY、WECHAT、MANUAL、BALANCE）、新增 `/payments/:orderId` 状态查询与 `/payments/:orderId/mock-success` 本地模拟，Webhook DTO 支持 tradeNo/payload。
+- 01:47 前端商品详情加入担保下单 & 支付组件，可创建订单、发起支付、展示 webhook payload 并一键模拟成功；补充按钮/状态样式。
+- 01:49 `.env.example` 切换 MySQL & 端口 4000，新增 PAY_WEBHOOK_BASE/PAY_ENTRY_BASE 示例，确保本地 dev 与 MySQL socket 配置一致。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。

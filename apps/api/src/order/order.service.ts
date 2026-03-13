@@ -11,7 +11,9 @@ import {
   PayStatus,
   Prisma,
   SettlementStatus,
-  VerifyResult
+  VerifyResult,
+  RefundStatus,
+  DisputeStatus
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -139,7 +141,13 @@ export class OrderService {
   }
 
   // Webhook 支付回调专用（绕过 buyerId 校验）
-  async markPaidFromWebhook(orderId: string, channel: PayChannel, amount: number) {
+  async markPaidFromWebhook(
+    orderId: string,
+    channel: PayChannel,
+    amount: number,
+    notifyPayload?: Record<string, unknown>,
+    tradeNo?: string
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('订单不存在');
@@ -154,14 +162,18 @@ export class OrderService {
           channel,
           amount: new Prisma.Decimal(amount),
           payStatus: PayStatus.PAID,
-          paidAt: now
+          paidAt: now,
+          tradeNo: tradeNo ?? undefined,
+          notifyPayload: notifyPayload as any
         },
         create: {
           orderId,
           channel,
           amount: new Prisma.Decimal(amount),
           payStatus: PayStatus.PAID,
-          paidAt: now
+          paidAt: now,
+          tradeNo: tradeNo ?? `PAY-${Date.now()}`,
+          notifyPayload: notifyPayload as any
         }
       });
 
@@ -237,7 +249,7 @@ export class OrderService {
           orderId,
           verifierId: adminId,
           result: dto.result,
-          checklist: dto.checklist
+          checklist: dto.checklist as any
         }
       });
 
@@ -269,10 +281,10 @@ export class OrderService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
-      if (!order) throw new NotFoundException('订单不存在');
-      if (order.status !== OrderStatus.BUYER_CHECKING) {
-        throw new BadRequestException('当前状态不可确认');
-      }
+    if (!order) throw new NotFoundException('订单不存在');
+    if (order.status !== OrderStatus.BUYER_CHECKING) {
+      throw new BadRequestException('当前状态不可确认');
+    }
 
       await tx.order.update({
         where: { id: orderId },
@@ -381,9 +393,9 @@ export class OrderService {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('订单不存在');
       if (order.buyerId !== buyerId) throw new ForbiddenException('无权操作');
-      if (![OrderStatus.PAID_WAITING_DELIVERY, OrderStatus.BUYER_CHECKING].includes(order.status)) {
-        throw new BadRequestException('当前状态不可申请退款');
-      }
+    if (![OrderStatus.PAID_WAITING_DELIVERY, OrderStatus.BUYER_CHECKING].includes(order.status as any)) {
+      throw new BadRequestException('当前状态不可申请退款');
+    }
 
       await tx.refund.upsert({
         where: { orderId },
@@ -518,7 +530,7 @@ export class OrderService {
 
   async listRefunds(query: { status?: string; page?: number; pageSize?: number }) {
     const { status, page = 1, pageSize = 20 } = query;
-    const where = status ? { status } : undefined;
+    const where = status ? { status: status as RefundStatus } : undefined;
     const [total, list] = await this.prisma.$transaction([
       this.prisma.refund.count({ where }),
       this.prisma.refund.findMany({
@@ -533,7 +545,7 @@ export class OrderService {
 
   async listDisputes(query: { status?: string; page?: number; pageSize?: number }) {
     const { status, page = 1, pageSize = 20 } = query;
-    const where = status ? { status } : undefined;
+    const where = status ? { status: status as DisputeStatus } : undefined;
     const [total, list] = await this.prisma.$transaction([
       this.prisma.dispute.count({ where }),
       this.prisma.dispute.findMany({
@@ -549,7 +561,7 @@ export class OrderService {
 
   async resolveDispute(
     orderId: string,
-    status: 'RESOLVED' | 'REJECTED',
+    status: DisputeStatus,
     action: 'REFUND' | 'RELEASE',
     result?: string,
     resolution?: string
@@ -560,13 +572,17 @@ export class OrderService {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('订单不存在');
 
+      if (status !== DisputeStatus.RESOLVED && status !== DisputeStatus.REJECTED) {
+        throw new BadRequestException('状态仅支持 RESOLVED/REJECTED');
+      }
+
       await tx.dispute.update({
         where: { orderId },
         data: { status, result, resolution, updatedAt: new Date() }
       });
 
       // 仲裁动作：退款或放款
-      if (status === 'RESOLVED') {
+      if (status === DisputeStatus.RESOLVED) {
         if (action === 'REFUND') {
           await this.walletService.refundToBuyer(orderId);
           await tx.order.update({

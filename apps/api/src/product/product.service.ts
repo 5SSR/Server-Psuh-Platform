@@ -13,17 +13,17 @@ export class ProductService {
   async findMany(query: QueryProductDto) {
     const { page = 1, pageSize = 20, keyword, category, region, minPrice, maxPrice, status } = query;
     const where: Prisma.ProductWhereInput = {
-      status: status ?? 'ONLINE',
+      status: status ?? ProductStatus.ONLINE,
       ...(keyword
         ? {
             OR: [
-              { title: { contains: keyword, mode: 'insensitive' } },
-              { description: { contains: keyword, mode: 'insensitive' } }
+              { title: { contains: keyword } },
+              { description: { contains: keyword } }
             ]
           }
         : undefined),
       ...(category ? { category } : undefined),
-      ...(region ? { region: { contains: region, mode: 'insensitive' } } : undefined),
+      ...(region ? { region: { contains: region } } : undefined),
       ...(minPrice || maxPrice
         ? {
             salePrice: {

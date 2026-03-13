@@ -31,7 +31,7 @@ export class PrismaService
 
   // 提供给端到端测试或健康检查的钩子
   async enableShutdownHooks(app: INestApplication) {
-    this.$on('beforeExit', async () => {
+    (this as any).$on('beforeExit', async () => {
       await app.close();
     });
   }

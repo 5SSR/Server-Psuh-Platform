@@ -2,6 +2,9 @@
   "name": "@idc/api",
   "version": "0.1.0",
   "private": true,
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
@@ -39,6 +42,7 @@
     "@nestjs/testing": "^10.3.0",
     "@types/express": "^4.17.21",
     "@types/bcryptjs": "^2.4.2",
+    "@types/passport-jwt": "^3.0.10",
     "@types/jest": "^29.5.12",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",

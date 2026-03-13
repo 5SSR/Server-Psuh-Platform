@@ -18,17 +18,21 @@ export class PaymentWebhookService {
     if (!amountNum || amountNum <= 0) throw new BadRequestException('金额无效');
 
     const secret = this.resolveSecret(channel);
-    if (!this.verifySignature(payload, secret, sign)) {
+    if (!this.verifySignature(payload as Record<string, unknown>, secret, sign)) {
       throw new UnauthorizedException('签名校验失败');
     }
     if (!this.verifyTimestamp(ts)) {
       throw new BadRequestException('回调超时或时间戳无效');
     }
 
+    const payChannel = channel.toUpperCase() as PayChannel;
+
     await this.orderService.markPaidFromWebhook(
       orderId,
-      channel.toUpperCase() as PayChannel,
-      amountNum
+      payChannel,
+      amountNum,
+      payload.payload ?? payload,
+      payload.tradeNo
     );
     return { ok: true };
   }

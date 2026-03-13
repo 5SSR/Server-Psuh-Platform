@@ -1,5 +1,6 @@
 import { api } from '../../../lib/api';
 import Link from 'next/link';
+import { PurchaseBox } from '../../../components/purchase-box';
 
 export default async function ProductDetail({ params }: { params: { id: string } }) {
   const detail = await api.productDetail(params.id);
@@ -36,6 +37,8 @@ export default async function ProductDetail({ params }: { params: { id: string }
           </div>
         </section>
       </div>
+
+      <PurchaseBox productId={detail.id} price={Number(detail.salePrice)} />
     </main>
   );
 }
