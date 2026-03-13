@@ -24,6 +24,36 @@ body {
   padding: 64px 8vw 96px;
 }
 
+.page.narrow {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.form input,
+.form select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+}
+
+.form button {
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: #0b1021;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .topbar {
   position: sticky;
   top: 0;

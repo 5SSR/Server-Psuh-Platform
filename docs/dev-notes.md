@@ -44,6 +44,7 @@
 - 01:19 支付占位收尾：非余额支付发起走 PaymentService 记录待回调；回调金额校验与写入维持；回归测试通过。
 - 01:21 前端骨架：Next.js 增产品列表/详情页、顶部导航；封装 `lib/api` 调用后端 `/products`；样式补充卡片/标签/导航。
 - 01:22 示例数据：新增 Prisma seed 脚本（demo 卖家+3 个商品），命令 `pnpm --filter @idc/api prisma:seed`（需配置 DATABASE_URL）。
+- 01:25 前端认证表单：新增登录/注册页（保存 token 到 localStorage），表单样式完善，回归测试通过。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。
