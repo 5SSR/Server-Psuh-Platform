@@ -5,12 +5,15 @@
 - 一期目标：跑通“担保交易闭环”，优先安全性与可控性。
 - 技术栈（推荐）：NestJS + Next.js + PostgreSQL + Redis + pnpm + turbo。
 - 设计文档：`docs/architecture.md`（ERD、状态机、接口草案）。
+- 数据层：Prisma schema 位置 `apps/api/prisma/schema.prisma`，API Swagger 访问 `/api/docs`。
 
 ## 快速开始（开发）
 1. 安装 pnpm：`npm i -g pnpm@9`
 2. 安装依赖：`pnpm install`
 3. 启动所有应用：`pnpm dev`（turbo 并行 web + api）
 4. 复制 `.env.example` 为 `.env`，填入数据库、Redis、支付/邮件等配置。
+5. 首次建库：`pnpm --filter @idc/api prisma:generate`，然后 `pnpm --filter @idc/api prisma:migrate -- --name init`
+6. Swagger 调试：`http://localhost:3000/api/docs`，鉴权使用 Bearer Token（`/auth/login` 获取）
 
 ## 仓库结构
 - apps/api：后端 API（NestJS）
@@ -18,6 +21,12 @@
 - packages/shared：共享类型与 DTO
 - docs：架构与规范文档
 - pnpm-workspace.yaml / turbo.json：工作区与任务编排
+
+## 环境变量（关键）
+- `DATABASE_URL` / `REDIS_URL`
+- JWT：`JWT_SECRET`、`JWT_EXPIRES`
+- 订单超时：`ORDER_AUTO_CONFIRM_HOURS`、`ORDER_UNPAID_CANCEL_MINUTES`
+- 支付回调验签：`PAY_WEBHOOK_SECRET_ALIPAY`、`PAY_WEBHOOK_SECRET_WECHAT`、`PAY_WEBHOOK_SECRET_MANUAL`
 
 ---
 

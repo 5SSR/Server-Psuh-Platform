@@ -1,0 +1,471 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== 枚举定义 ==========
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
+enum ProductCategory {
+  DEDICATED
+  VPS
+  CLOUD
+  NAT
+  LINE
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING
+  ONLINE
+  OFFLINE
+}
+
+enum ProductImageType {
+  BILL
+  PANEL
+  BENCHMARK
+  OTHER
+}
+
+enum ProductAuditStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DeliveryType {
+  FULL_ACCOUNT
+  PANEL_TRANSFER
+  SUB_ACCOUNT
+  EMAIL_CHANGE
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID_WAITING_DELIVERY
+  VERIFYING
+  BUYER_CHECKING
+  COMPLETED_PENDING_SETTLEMENT
+  COMPLETED
+  REFUNDING
+  DISPUTING
+  CANCELED
+}
+
+enum PayStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+enum PayChannel {
+  BALANCE
+  ALIPAY
+  WECHAT
+  MANUAL
+}
+
+enum VerifyResult {
+  PASS
+  FAIL
+  NEED_MORE
+}
+
+enum SettlementStatus {
+  PENDING
+  RELEASED
+  REJECTED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DisputeStatus {
+  OPEN
+  PROCESSING
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeInitiator {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum WalletLedgerType {
+  PAY
+  ESCROW_FREEZE
+  ESCROW_RELEASE
+  REFUND
+  WITHDRAW
+  FEE
+  ADJUST
+}
+
+enum NoticeChannel {
+  SITE
+  EMAIL
+  TG
+}
+
+enum NoticeStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum ActorType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+// ========== 用户与认证 ==========
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  role         UserRole    @default(BUYER)
+  status       UserStatus  @default(ACTIVE)
+  mfaEnabled   Boolean     @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  kyc           UserKyc?
+  sellerProfile SellerProfile?
+  wallet        Wallet?
+  products      Product[]         @relation("SellerProducts")
+  orders        Order[]           @relation("BuyerOrders")
+  notices       Notice[]
+  orderLogs     OrderLog[]        @relation("UserOrderLogs")
+  disputes      Dispute[]         @relation("UserDisputes")
+  evidences     DisputeEvidence[]
+  sellerOrders  Order[]           @relation("SellerOrders")
+}
+
+model UserKyc {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @unique
+  realName  String
+  idNumber  String
+  docImages String?
+  status    String   @default("pending") // pending/approved/rejected
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SellerProfile {
+  id                  String  @id @default(uuid())
+  user                User    @relation(fields: [userId], references: [id])
+  userId              String  @unique
+  level               Int     @default(1)
+  tradeCount          Int     @default(0)
+  disputeRate         Float   @default(0)
+  avgDeliveryMinutes  Int     @default(0)
+  positiveRate        Float   @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// ========== 钱包 ==========
+
+model Wallet {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @unique
+  balance   Decimal  @default(0) @db.Decimal(16, 2)
+  frozen    Decimal  @default(0) @db.Decimal(16, 2)
+  currency  String   @default("CNY")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ledgers     WalletLedger[]
+  withdrawals Withdrawal[]
+}
+
+model WalletLedger {
+  id        String           @id @default(uuid())
+  wallet    Wallet           @relation(fields: [walletId], references: [id])
+  walletId  String
+  type      WalletLedgerType
+  amount    Decimal          @db.Decimal(16, 2)
+  refType   String?
+  refId     String?
+  memo      String?
+  createdAt DateTime         @default(now())
+
+  @@index([walletId, createdAt])
+}
+
+model Withdrawal {
+  id           String   @id @default(uuid())
+  wallet       Wallet   @relation(fields: [walletId], references: [id])
+  walletId     String
+  amount       Decimal  @db.Decimal(16, 2)
+  fee          Decimal  @default(0) @db.Decimal(16, 2)
+  channel      String
+  accountInfo  String
+  status       String   @default("pending") // pending/approved/paid/rejected
+  processedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([walletId, status])
+}
+
+// ========== 商品 ==========
+
+model Product {
+  id                String          @id @default(uuid())
+  seller            User            @relation("SellerProducts", fields: [sellerId], references: [id])
+  sellerId          String
+  code              String          @unique
+  title             String
+  category          ProductCategory
+  region            String
+  datacenter        String?
+  lineType          String?
+  providerName      String?
+  providerUrl       String?
+  cpuModel          String?
+  cpuCores          Int?
+  memoryGb          Int?
+  diskGb            Int?
+  diskType          String?
+  bandwidthMbps     Int?
+  trafficLimit      Int?
+  ipCount           Int?
+  ddos              Int?
+  purchasePrice     Decimal?        @db.Decimal(16, 2)
+  salePrice         Decimal         @db.Decimal(16, 2)
+  renewPrice        Decimal?        @db.Decimal(16, 2)
+  expireAt          DateTime?
+  negotiable        Boolean         @default(false)
+  consignment       Boolean         @default(false)
+  isPremium         Boolean         @default(false)
+  premiumRate       Decimal?        @db.Decimal(6, 4)
+  deliveryType      DeliveryType
+  canChangeEmail    Boolean         @default(false)
+  canChangeRealname Boolean         @default(false)
+  riskLevel         RiskLevel       @default(MEDIUM)
+  abuseHistory      Boolean         @default(false)
+  accountRecallRisk Boolean         @default(false)
+  riskTags          String[]
+  description       String?
+  status            ProductStatus   @default(DRAFT)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  images   ProductImage[]
+  audits   ProductAudit[]
+  orders   Order[]
+
+  @@index([sellerId, status])
+  @@index([category, status])
+  @@index([region, lineType])
+}
+
+model ProductImage {
+  id        String           @id @default(uuid())
+  product   Product          @relation(fields: [productId], references: [id])
+  productId String
+  type      ProductImageType
+  url       String
+  createdAt DateTime         @default(now())
+}
+
+model ProductAudit {
+  id        String             @id @default(uuid())
+  product   Product            @relation(fields: [productId], references: [id])
+  productId String
+  adminId   String?
+  status    ProductAuditStatus @default(PENDING)
+  reason    String?
+  snapshot  Json?
+  createdAt DateTime           @default(now())
+
+  @@index([productId, status])
+}
+
+// ========== 订单与支付 ==========
+
+model Order {
+  id               String      @id @default(uuid())
+  buyer            User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  buyerId          String
+  seller           User        @relation("SellerOrders", fields: [sellerId], references: [id])
+  sellerId         String
+  product          Product     @relation(fields: [productId], references: [id])
+  productId        String
+  price            Decimal     @db.Decimal(16, 2)
+  fee              Decimal     @default(0) @db.Decimal(16, 2)
+  payChannel       PayChannel  @default(BALANCE)
+  payStatus        PayStatus   @default(UNPAID)
+  escrowAmount     Decimal     @db.Decimal(16, 2)
+  status           OrderStatus @default(PENDING_PAYMENT)
+  expiresAt        DateTime?
+  autoConfirmAt    DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  payment         Payment?
+  deliveryRecords DeliveryRecord[]
+  verifyRecords   VerifyRecord[]
+  settlement      Settlement?
+  refund          Refund?
+  dispute         Dispute?
+  logs            OrderLog[]
+
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+  @@index([productId])
+}
+
+model Payment {
+  id            String    @id @default(uuid())
+  order         Order     @relation(fields: [orderId], references: [id])
+  orderId       String    @unique
+  channel       PayChannel
+  tradeNo       String?
+  amount        Decimal   @db.Decimal(16, 2)
+  payStatus     PayStatus @default(UNPAID)
+  paidAt        DateTime?
+  notifyPayload Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model DeliveryRecord {
+  id                     String   @id @default(uuid())
+  order                  Order    @relation(fields: [orderId], references: [id])
+  orderId                String
+  providerAccount        String?
+  panelUrl               String?
+  loginInfo              String?
+  changeEmailPossible    Boolean  @default(false)
+  changeRealnamePossible Boolean  @default(false)
+  remark                 String?
+  createdAt              DateTime @default(now())
+}
+
+model VerifyRecord {
+  id        String       @id @default(uuid())
+  order     Order        @relation(fields: [orderId], references: [id])
+  orderId   String
+  verifierId String?
+  result    VerifyResult
+  checklist Json?
+  createdAt DateTime     @default(now())
+}
+
+model Settlement {
+  id         String            @id @default(uuid())
+  order      Order             @relation(fields: [orderId], references: [id])
+  orderId    String            @unique
+  sellerId   String
+  amount     Decimal           @db.Decimal(16, 2)
+  fee        Decimal           @default(0) @db.Decimal(16, 2)
+  releasedAt DateTime?
+  status     SettlementStatus  @default(PENDING)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+}
+
+model Refund {
+  id          String       @id @default(uuid())
+  order       Order        @relation(fields: [orderId], references: [id])
+  orderId     String       @unique
+  applicantId String
+  reason      String
+  amount      Decimal      @db.Decimal(16, 2)
+  status      RefundStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Dispute {
+  id          String          @id @default(uuid())
+  order       Order           @relation(fields: [orderId], references: [id])
+  orderId     String          @unique
+  initiator   DisputeInitiator
+  initiatorUser   User?       @relation("UserDisputes", fields: [initiatorUserId], references: [id])
+  initiatorUserId String?
+  status      DisputeStatus   @default(OPEN)
+  result      String?
+  resolution  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  evidences DisputeEvidence[]
+}
+
+model DisputeEvidence {
+  id        String   @id @default(uuid())
+  dispute   Dispute  @relation(fields: [disputeId], references: [id])
+  disputeId String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  url       String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([disputeId])
+}
+
+model OrderLog {
+  id        String    @id @default(uuid())
+  order     Order     @relation(fields: [orderId], references: [id])
+  orderId   String
+  action    String
+  actorType ActorType
+  actorId   String?
+  actorUser User?     @relation("UserOrderLogs", fields: [actorId], references: [id])
+  remark    String?
+  createdAt DateTime  @default(now())
+
+  @@index([orderId])
+}
+
+// ========== 通知 ==========
+
+model Notice {
+  id          String        @id @default(uuid())
+  user        User?         @relation(fields: [userId], references: [id])
+  userId      String?
+  type        String
+  channel     NoticeChannel @default(SITE)
+  templateId  String?
+  payload     Json?
+  status      NoticeStatus  @default(PENDING)
+  sentAt      DateTime?
+  createdAt   DateTime      @default(now())
+}
