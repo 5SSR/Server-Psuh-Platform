@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { OrderService } from '../order/order.service';
+import { AdminQueryDto } from './dto/admin-query.dto';
 
 @Controller('admin/refunds')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -11,7 +12,7 @@ export class AdminRefundController {
 
   @Get()
   @Roles('ADMIN')
-  list(@Query('status') status?: string) {
-    return this.orderService.listRefunds(status);
+  list(@Query() query: AdminQueryDto) {
+    return this.orderService.listRefunds(query);
   }
 }

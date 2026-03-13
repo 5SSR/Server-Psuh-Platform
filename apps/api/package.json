@@ -9,6 +9,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "prisma:generate": "node_modules/.bin/prisma generate --schema ./prisma/schema.prisma",
     "prisma:migrate": "node_modules/.bin/prisma migrate dev --schema ./prisma/schema.prisma",
+    "prisma:seed": "node -r ts-node/register prisma/seed.ts",
     "prisma:studio": "node_modules/.bin/prisma studio --schema ./prisma/schema.prisma",
     "test": "jest",
     "test:watch": "jest --watch"

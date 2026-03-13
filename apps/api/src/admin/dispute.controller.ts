@@ -4,6 +4,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { OrderService } from '../order/order.service';
 import { DisputeDecisionDto } from './dto/dispute-decision.dto';
+import { AdminQueryDto } from './dto/admin-query.dto';
 
 @Controller('admin/disputes')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,8 +13,8 @@ export class AdminDisputeController {
 
   @Get()
   @Roles('ADMIN')
-  list(@Query('status') status?: string) {
-    return this.orderService.listDisputes(status);
+  list(@Query() query: AdminQueryDto) {
+    return this.orderService.listDisputes(query);
   }
 
   @Patch(':id/decision')

@@ -14,6 +14,7 @@
 4. 复制 `.env.example` 为 `.env`，填入数据库、Redis、支付/邮件等配置。
 5. 首次建库：`pnpm --filter @idc/api prisma:generate`，然后 `pnpm --filter @idc/api prisma:migrate -- --name init`
 6. Swagger 调试：`http://localhost:3000/api/docs`，鉴权使用 Bearer Token（`/auth/login` 获取）
+7. 可选：导入示例数据 `pnpm --filter @idc/api prisma:seed`（需先配置 `DATABASE_URL`）
 
 ## 仓库结构
 - apps/api：后端 API（NestJS）

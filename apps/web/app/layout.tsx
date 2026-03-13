@@ -13,7 +13,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <nav className="topbar">
+          <div className="logo">IDC 二手交易</div>
+          <div className="nav-links">
+            <Link href="/products">商品</Link>
+            <Link href="#">订单（占位）</Link>
+            <Link href="#">后台（占位）</Link>
+          </div>
+        </nav>
+        {children}
+      </body>
     </html>
   );
 }

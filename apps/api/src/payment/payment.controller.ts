@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PayOrderDto } from '../order/dto/pay-order.dto';
+import { PaymentWebhookDto } from './dto/webhook.dto';
 
 @Controller('webhook/payment')
 export class PaymentController {
@@ -16,7 +17,7 @@ export class PaymentController {
   @Post(':channel')
   async handle(
     @Param('channel') channel: string,
-    @Body() payload: Record<string, unknown>
+    @Body() payload: PaymentWebhookDto
   ) {
     return this.webhookService.handle(channel, payload);
   }

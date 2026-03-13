@@ -39,6 +39,11 @@
 - 01:09 CI：新增 GitHub Actions 工作流 `.github/workflows/ci.yml`（pnpm install -> lint -> @idc/api test）。
 - 01:11 纠纷仲裁落地：管理员裁决带 action（REFUND/RELEASE），自动执行退款或放款并更新订单状态；测试回归通过。
 - 01:12 支付回调防重放：Webhook 验签增加时间戳校验（env `PAY_WEBHOOK_MAX_SKEW`，默认 300 秒），签名包含 ts；无效时间戳或签名直接拒绝。
+- 01:16 支付回调 DTO 化：Webhook 接口使用 `PaymentWebhookDto`（orderId/channel/amount/ts/sign/payload），保持 HMAC 验签与时间戳校验，测试通过。
+- 01:17 支付安全强化：Webhook 验签数据按 key 排序后 HMAC；校验金额>0；`markPaidFromWebhook` 接收回调金额写入 payment；测试回归通过。
+- 01:19 支付占位收尾：非余额支付发起走 PaymentService 记录待回调；回调金额校验与写入维持；回归测试通过。
+- 01:21 前端骨架：Next.js 增产品列表/详情页、顶部导航；封装 `lib/api` 调用后端 `/products`；样式补充卡片/标签/导航。
+- 01:22 示例数据：新增 Prisma seed 脚本（demo 卖家+3 个商品），命令 `pnpm --filter @idc/api prisma:seed`（需配置 DATABASE_URL）。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。

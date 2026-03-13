@@ -139,7 +139,7 @@ export class OrderService {
   }
 
   // Webhook 支付回调专用（绕过 buyerId 校验）
-  async markPaidFromWebhook(orderId: string, channel: PayChannel) {
+  async markPaidFromWebhook(orderId: string, channel: PayChannel, amount: number) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('订单不存在');
@@ -152,14 +152,14 @@ export class OrderService {
         where: { orderId },
         update: {
           channel,
-          amount: order.price,
+          amount: new Prisma.Decimal(amount),
           payStatus: PayStatus.PAID,
           paidAt: now
         },
         create: {
           orderId,
           channel,
-          amount: order.price,
+          amount: new Prisma.Decimal(amount),
           payStatus: PayStatus.PAID,
           paidAt: now
         }
@@ -516,19 +516,35 @@ export class OrderService {
     });
   }
 
-  async listRefunds(status?: string) {
-    return this.prisma.refund.findMany({
-      where: status ? { status } : undefined,
-      orderBy: { createdAt: 'desc' }
-    });
+  async listRefunds(query: { status?: string; page?: number; pageSize?: number }) {
+    const { status, page = 1, pageSize = 20 } = query;
+    const where = status ? { status } : undefined;
+    const [total, list] = await this.prisma.$transaction([
+      this.prisma.refund.count({ where }),
+      this.prisma.refund.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+    return { total, list, page, pageSize };
   }
 
-  async listDisputes(status?: string) {
-    return this.prisma.dispute.findMany({
-      where: status ? { status } : undefined,
-      include: { evidences: true },
-      orderBy: { createdAt: 'desc' }
-    });
+  async listDisputes(query: { status?: string; page?: number; pageSize?: number }) {
+    const { status, page = 1, pageSize = 20 } = query;
+    const where = status ? { status } : undefined;
+    const [total, list] = await this.prisma.$transaction([
+      this.prisma.dispute.count({ where }),
+      this.prisma.dispute.findMany({
+        where,
+        include: { evidences: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+    return { total, list, page, pageSize };
   }
 
   async resolveDispute(
