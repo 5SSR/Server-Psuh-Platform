@@ -49,6 +49,7 @@
 - 01:44 支付模块完善：支付意图/签名/回调（ALIPAY、WECHAT、MANUAL、BALANCE）、新增 `/payments/:orderId` 状态查询与 `/payments/:orderId/mock-success` 本地模拟，Webhook DTO 支持 tradeNo/payload。
 - 01:47 前端商品详情加入担保下单 & 支付组件，可创建订单、发起支付、展示 webhook payload 并一键模拟成功；补充按钮/状态样式。
 - 01:49 `.env.example` 切换 MySQL & 端口 4000，新增 PAY_WEBHOOK_BASE/PAY_ENTRY_BASE 示例，确保本地 dev 与 MySQL socket 配置一致。
+- 17:02 买家订单中心 `/orders` 页面：列表查看、余额支付、确认收货入口；导航新增“订单”入口与通用副按钮样式。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。

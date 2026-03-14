@@ -263,6 +263,13 @@ h1 {
   color: var(--text);
 }
 
+button.secondary,
+.btn.secondary {
+  background: var(--ghost);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
 .card.nested {
   margin-top: 12px;
   background: #0f152b;
