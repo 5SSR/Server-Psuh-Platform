@@ -5,6 +5,7 @@ import { Prisma, ProductStatus } from '@prisma/client';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductImageDto } from './dto/image.dto';
+import { QueryMyProductsDto } from './dto/query-my-products.dto';
 
 @Injectable()
 export class ProductService {
@@ -60,6 +61,33 @@ export class ProductService {
       where: { id },
       include: { images: true }
     });
+  }
+
+  async findMine(sellerId: string, query: QueryMyProductsDto) {
+    const { page = 1, pageSize = 20, status } = query;
+    const where: Prisma.ProductWhereInput = {
+      sellerId,
+      ...(status ? { status } : {})
+    };
+
+    const [total, list] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        include: {
+          images: true,
+          audits: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+
+    return { total, list, page, pageSize };
   }
 
   async create(sellerId: string, dto: CreateProductDto) {

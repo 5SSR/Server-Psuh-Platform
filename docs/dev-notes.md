@@ -50,14 +50,58 @@
 - 01:47 前端商品详情加入担保下单 & 支付组件，可创建订单、发起支付、展示 webhook payload 并一键模拟成功；补充按钮/状态样式。
 - 01:49 `.env.example` 切换 MySQL & 端口 4000，新增 PAY_WEBHOOK_BASE/PAY_ENTRY_BASE 示例，确保本地 dev 与 MySQL socket 配置一致。
 - 17:02 买家订单中心 `/orders` 页面：列表查看、余额支付、确认收货入口；导航新增“订单”入口与通用副按钮样式。
+- 17:08 认证安全闭环（P0-1）数据层：`schema.prisma` 新增 `AuthCode`（邮箱验证码）、`UserLoginLog`（登录日志），`User` 新增 `emailVerifiedAt`、`lastLoginIp` 字段；迁移 `20260314091002_auth_security` 已生成并应用。
+- 17:11 认证模块接口增强：新增 `POST /auth/password/forgot`、`POST /auth/password/reset`、`POST /auth/email/send-verify-code`、`POST /auth/email/verify`、`GET /auth/security/logs`；登录成功/失败写入 `UserLoginLog`，异地 IP 登录写入安全提醒通知（Notice）。
+- 17:13 前端认证页面补齐：新增 `/auth/forgot`、`/auth/verify-email` 页面；登录/注册页增加快捷入口，统一前端默认 API 地址为 `http://localhost:4000/api/v1`。
+- 17:14 回归验证：`pnpm --filter @idc/api test` 通过；`pnpm --filter @idc/web build` 通过（无 lint/type 报错）。
+- 17:16 接口联调自测：通过 `curl` 完成注册→邮箱验证→忘记密码→重置密码→登录→安全日志查询全链路，返回结果符合预期（开发环境回传 `devCode`）。
+- 17:18 P0-2 数据层扩展：新增 `SellerApplication`（卖家认证申请）模型与状态枚举，迁移 `20260314091801_kyc_seller_verification` 已应用。
+- 17:20 用户侧认证接口：新增 `POST /user/kyc`、`GET /user/kyc`、`POST /user/seller-application`、`GET /user/seller-application`；卖家申请强制要求实名认证通过。
+- 17:21 管理员审核接口：新增 `GET /admin/users/kyc`、`PATCH /admin/users/:userId/kyc`、`GET /admin/users/seller-applications`、`PATCH /admin/users/:userId/seller-application`；审核通过自动将用户角色切换为 `SELLER` 并初始化 `SellerProfile`。
+- 17:22 前端新增认证中心页 `/profile/verify`，整合实名认证提交与卖家申请提交流程；顶部导航新增“认证中心”入口。
+- 17:23 安全修复：注册角色限制为 `BUYER/SELLER`（禁止前端传入 `ADMIN`），后端注册逻辑也做白名单兜底。
+- 17:23 联调验证（4001 端口临时实例）：用户提交 KYC -> 管理员审核通过 -> 用户提交卖家申请 -> 管理员审核通过 -> 用户再次登录角色变为 `SELLER`。
+- 17:25 P0-3 平台核验流程：新增管理员订单管理接口 `GET /admin/orders`、`PATCH /admin/orders/:id/verify`，支持按状态筛选订单并执行核验（PASS/FAIL/NEED_MORE）。
+- 17:25 状态机调整：卖家交付后默认进入 `VERIFYING`（可通过 `ORDER_REQUIRE_PLATFORM_VERIFY=false` 关闭）；管理员核验 `PASS -> BUYER_CHECKING`、`FAIL -> PAID_WAITING_DELIVERY`、`NEED_MORE -> VERIFYING`，并新增 `VERIFY` 订单日志。
+- 17:26 前端订单状态展示补充 `VERIFYING`（平台核验中）。
+- 17:26 联调验证（4001 端口临时实例）：买家下单支付 -> 卖家交付 -> 订单进入 `VERIFYING` -> 管理员核验 `PASS` -> 买家订单状态变为 `BUYER_CHECKING`。
+- 17:31 P0-4 提现闭环（后端）：`WalletService` 新增卖家提现申请、用户提现记录查询、管理员提现列表/审核能力；状态流转为 `pending -> approved -> paid / rejected`，审核驳回自动解冻退回，打款完成自动扣减冻结金额并写入 `WITHDRAW/FEE/ADJUST` 流水与站内通知。
+- 17:32 新增提现接口：用户侧 `POST /wallet/withdrawals`、`GET /wallet/withdrawals`；管理侧 `GET /admin/withdrawals`、`PATCH /admin/withdrawals/:id/review`；新增 DTO `QueryWithdrawDto`、`ReviewWithdrawDto`，提现申请字段做数值与长度校验。
+- 17:34 前端新增钱包中心 `/wallet`（余额、冻结、测试充值、卖家提现申请、提现记录、流水）与管理员提现审核页 `/admin/withdrawals`（筛选、通过/驳回/打款）；顶部导航新增“钱包”“提现审核”。
+- 17:35 配置补充：`.env.example` 新增提现参数 `WITHDRAW_MIN_AMOUNT`、`WITHDRAW_FEE_RATE`、`WITHDRAW_MIN_FEE`，并统一 `NEXT_PUBLIC_API_BASE` 默认示例到 `http://localhost:4000/api/v1`。
+- 17:38 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 全部通过（前端静态构建阶段因本地未启动 API 出现 `fetch failed` 提示，但构建产物成功生成）。
+- 17:39 前端 `apps/web/lib/api.ts` 默认 API 地址回退值修正为 `http://localhost:4000/api/v1`，避免未配置环境变量时错误回退到 3000 端口。
+- 17:41 P0-5 通知中心（后端）上线：新增 `NoticeModule`、`NoticeService`、`NoticeController`，提供用户通知列表、未读计数、单条已读、全部已读接口（站内通知以 `Notice.status` 映射未读/已读）。
+- 17:42 管理端通知能力：新增 `AdminNoticeController`，支持 `GET /admin/notices` 通知列表查询与 `POST /admin/notices` 发送通知（支持单用户发送与全站广播给 ACTIVE 用户）。
+- 17:43 前端通知页面：新增用户通知页 `/notices`（状态筛选、未读计数、单条已读、全部已读）与管理员通知页 `/admin/notices`（发送通知、查看记录）；导航新增“通知”“通知管理”入口。
+- 17:45 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；前端构建期间仍会出现 `fetch failed`（本地未启动 API 的静态预渲染读取失败提示），但不影响构建完成。
+- 17:47 P0-6 商品工作台（后端）：商品模块新增卖家商品列表接口 `GET /products/mine`，支持按状态分页查询并返回最新审核记录（用于卖家管理台）。
+- 17:48 P0-6 商品工作台（前端）：新增卖家商品页 `/seller/products`（创建商品、筛选列表、提交审核、上/下架）与管理员审核页 `/admin/products`（待审列表、通过/驳回、审核备注）；导航新增“卖家商品”“商品审核”入口。
+- 17:49 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；静态构建阶段存在 `fetch failed` 提示（构建时本地 API 未启动），不影响页面产物生成。
+- 17:51 P0-7 售后仲裁工作台（前端-管理端）：新增退款审核页 `/admin/refunds`（调用 `GET /admin/refunds` + `PATCH /admin/orders/:id/refund`）与纠纷仲裁页 `/admin/disputes`（调用 `GET /admin/disputes` + `PATCH /admin/disputes/:id/decision`）；导航新增“退款审核”“纠纷仲裁”。
+- 17:53 P0-7 售后仲裁工作台（前端-用户端）：增强 `/orders` 页面，补充“申请退款”“发起纠纷”“补充证据”“查看时间线/纠纷详情”能力，对接 `orders/:id/refund`、`orders/:id/dispute`、`orders/:id/dispute/evidence`、`orders/:id/timeline`、`orders/:id/dispute`。
+- 17:54 回归验证：`pnpm --filter @idc/web build`、`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test` 通过；前端构建中的 `fetch failed` 仍是静态构建时 API 未启动导致的提示，不影响产物生成。
+- 17:55 P0-8 订单履约工作台（后端）：`OrderService.listMine` 增补买家/卖家信息与最近交付、最近核验记录，满足卖家交付页和运营排障所需上下文。
+- 17:56 P0-8 订单履约工作台（前端）：新增卖家订单页 `/seller/orders`（卖家订单列表 + 交付信息提交）与管理员核验页 `/admin/orders`（订单筛选 + PASS/FAIL/NEED_MORE 核验）；导航新增“卖家订单”“订单核验”入口。
+- 17:57 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；前端构建阶段 `fetch failed` 仍为本地 API 未启动的静态预渲染提示，不影响构建成功。
+- 17:59 P0-9 结算放款看板（后端）：新增结算查询能力，管理员端 `GET /admin/settlements`（支持状态/卖家/订单筛选），卖家端 `GET /wallet/settlements`（带累计金额/手续费统计）；保留 `PATCH /admin/settlements/:orderId/release` 手动放款能力。
+- 18:00 P0-9 结算放款看板（前端）：新增管理员结算页 `/admin/settlements`（待放款筛选 + 一键放款）与卖家结算页 `/seller/settlements`（累计收益统计 + 结算明细）；导航新增“卖家结算”“结算放款”入口。
+- 18:01 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；前端构建阶段 `fetch failed` 仍为本地 API 未启动导致的预渲染提示，不影响产物生成。
+- 18:03 P0-10 用户风控管理（后端）：新增管理员用户管理接口 `GET /admin/users`（支持 role/status/关键词筛选，附带 KYC、卖家申请、钱包信息）与 `PATCH /admin/users/:userId/status`（ACTIVE/BANNED）；封禁/恢复会写入站内通知，且禁止封禁管理员账号。
+- 18:04 P0-10 用户风控管理（前端）：新增管理页 `/admin/users`，支持角色/状态/关键词筛选、查看用户核心风控信息（邮箱验证、最近登录、KYC、钱包）并执行封禁/恢复；导航新增“用户管理”入口。
+- 18:05 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；前端构建阶段 `fetch failed` 仍是本地 API 未启动时的静态预渲染提示，不影响构建结果。
+- 18:08 P0-11 运营数据看板（后端）：新增管理员看板接口 `GET /admin/dashboard/overview`，统计用户规模、商品/订单状态分布、交易额、待放款/待提现金额、风险积压（退款/纠纷/KYC/卖家认证/登录失败）及最近订单列表。
+- 18:09 P0-11 卖家经营看板（后端）：新增卖家看板接口 `GET /seller/dashboard/overview`，统计卖家商品/订单状态、近周期成交额、结算待放款与已放款、钱包余额、提现状态分布、最近订单与最近结算。
+- 18:10 P0-11 看板页面（前端）：新增 `/admin/dashboard` 与 `/seller/dashboard` 页面，支持 7/30/90 天区间切换并展示核心 KPI；导航新增“运营看板”“卖家看板”入口。
+- 18:12 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；前端构建阶段 `fetch failed` 仍为本地 API 未启动导致的静态预渲染提示，不影响构建成功。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。
-2) 生成客户端并创建本地表（PostgreSQL）：  
+2) 生成客户端并创建本地表（MySQL）：  
    - `cd /Users/mac/Documents/vps`  
    - `pnpm --filter @idc/api prisma:generate`  
    - `pnpm --filter @idc/api prisma:migrate -- --name init`  
-3) 启动服务：`pnpm dev`（默认 API 端口 3000，前端 3001 若后续配置）。
+3) 启动服务：`pnpm dev`（默认 API 端口 4000；前端从 3000 起自动寻找可用端口）。
 
 ### 下一步建议
 - 基于 schema 落地 Prisma migration（上一步命令）。

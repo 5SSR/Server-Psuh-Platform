@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from 'react';
+import Link from 'next/link';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -52,6 +53,10 @@ export default function RegisterPage() {
         <button onClick={submit} disabled={loading}>
           {loading ? '注册中...' : '注册'}
         </button>
+        <div className="auth-links">
+          <Link href="/auth/login">已有账号去登录</Link>
+          <Link href="/auth/verify-email">去验证邮箱</Link>
+        </div>
         {message && <p className="muted">{message}</p>}
       </div>
     </main>

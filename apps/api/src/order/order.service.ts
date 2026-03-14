@@ -25,6 +25,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { RefundDto } from './dto/refund.dto';
 import { DisputeDto } from './dto/dispute.dto';
 import { DisputeEvidenceDto } from './dto/dispute-evidence.dto';
+import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 
 @Injectable()
 export class OrderService {
@@ -77,7 +78,25 @@ export class OrderService {
     return this.prisma.order.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { product: true, payment: true, settlement: true }
+      include: {
+        product: true,
+        buyer: {
+          select: { id: true, email: true }
+        },
+        seller: {
+          select: { id: true, email: true }
+        },
+        payment: true,
+        settlement: true,
+        deliveryRecords: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        },
+        verifyRecords: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
+      }
     });
   }
 
@@ -220,7 +239,7 @@ export class OrderService {
       await tx.order.update({
         where: { id: orderId },
         data: {
-          status: OrderStatus.BUYER_CHECKING
+          status: this.requirePlatformVerify ? OrderStatus.VERIFYING : OrderStatus.BUYER_CHECKING
         }
       });
 
@@ -229,7 +248,8 @@ export class OrderService {
           orderId,
           action: 'DELIVER',
           actorType: 'USER',
-          actorId: sellerId
+          actorId: sellerId,
+          remark: this.requirePlatformVerify ? '交付完成，等待平台核验' : '交付完成，进入买家验机'
         }
       });
     });
@@ -244,6 +264,15 @@ export class OrderService {
         throw new BadRequestException('当前状态不可核验');
       }
 
+      let nextStatus: OrderStatus = order.status;
+      if (dto.result === VerifyResult.PASS) {
+        nextStatus = OrderStatus.BUYER_CHECKING;
+      } else if (dto.result === VerifyResult.FAIL) {
+        nextStatus = OrderStatus.PAID_WAITING_DELIVERY;
+      } else {
+        nextStatus = OrderStatus.VERIFYING;
+      }
+
       await tx.verifyRecord.create({
         data: {
           orderId,
@@ -256,12 +285,21 @@ export class OrderService {
       await tx.order.update({
         where: { id: orderId },
         data: {
-          status:
-            dto.result === VerifyResult.PASS
-              ? OrderStatus.BUYER_CHECKING
-              : OrderStatus.PAID_WAITING_DELIVERY
+          status: nextStatus
         }
       });
+
+      await tx.orderLog.create({
+        data: {
+          orderId,
+          action: 'VERIFY',
+          actorType: 'ADMIN',
+          actorId: adminId,
+          remark: `result=${dto.result}`
+        }
+      });
+
+      return { ok: true, nextStatus };
     });
   }
 
@@ -381,6 +419,10 @@ export class OrderService {
 
   get autoConfirmHours() {
     return Number(process.env.ORDER_AUTO_CONFIRM_HOURS || 72);
+  }
+
+  get requirePlatformVerify() {
+    return String(process.env.ORDER_REQUIRE_PLATFORM_VERIFY || 'true') !== 'false';
   }
 
   // 创建订单后计算自动确认时间
@@ -628,5 +670,36 @@ export class OrderService {
       where: { orderId },
       orderBy: { createdAt: 'asc' }
     });
+  }
+
+  async listForAdmin(query: AdminOrderQueryDto) {
+    const { page = 1, pageSize = 20, status } = query;
+    const where = status ? { status } : undefined;
+    const [total, list] = await this.prisma.$transaction([
+      this.prisma.order.count({ where }),
+      this.prisma.order.findMany({
+        where,
+        include: {
+          product: {
+            select: { id: true, title: true, code: true }
+          },
+          buyer: {
+            select: { id: true, email: true }
+          },
+          seller: {
+            select: { id: true, email: true }
+          },
+          payment: true,
+          verifyRecords: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+    return { total, list, page, pageSize };
   }
 }

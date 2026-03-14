@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from 'react';
+import Link from 'next/link';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -46,6 +47,10 @@ export default function LoginPage() {
         <button onClick={submit} disabled={loading}>
           {loading ? '登录中...' : '登录'}
         </button>
+        <div className="auth-links">
+          <Link href="/auth/forgot">忘记密码</Link>
+          <Link href="/auth/verify-email">邮箱验证</Link>
+        </div>
         {message && <p className="muted">{message}</p>}
       </div>
     </main>

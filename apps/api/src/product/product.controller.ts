@@ -18,6 +18,7 @@ import { SubmitProductDto } from './dto/submit-product.dto';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ProductImageDto } from './dto/image.dto';
+import { QueryMyProductsDto } from './dto/query-my-products.dto';
 
 @Controller('products')
 export class ProductController {
@@ -26,6 +27,16 @@ export class ProductController {
   @Get()
   async list(@Query() query: QueryProductDto) {
     return this.productService.findMany(query);
+  }
+
+  @Get('mine')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SELLER')
+  mine(
+    @CurrentUser() user: { userId: string },
+    @Query() query: QueryMyProductsDto
+  ) {
+    return this.productService.findMine(user.userId, query);
   }
 
   @Get(':id')

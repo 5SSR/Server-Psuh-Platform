@@ -54,6 +54,18 @@ body {
   cursor: pointer;
 }
 
+.auth-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-links a {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 14px;
+}
+
 .topbar {
   position: sticky;
   top: 0;

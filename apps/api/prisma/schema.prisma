@@ -139,10 +139,21 @@ enum NoticeStatus {
   FAILED
 }
 
+enum AuthCodeScene {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
 enum ActorType {
   USER
   ADMIN
   SYSTEM
+}
+
+enum SellerApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // ========== 用户与认证 ==========
@@ -153,12 +164,15 @@ model User {
   passwordHash String
   role         UserRole    @default(BUYER)
   status       UserStatus  @default(ACTIVE)
+  emailVerifiedAt DateTime?
   mfaEnabled   Boolean     @default(false)
   lastLoginAt  DateTime?
+  lastLoginIp  String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
   kyc           UserKyc?
+  sellerApplication SellerApplication?
   sellerProfile SellerProfile?
   wallet        Wallet?
   products      Product[]         @relation("SellerProducts")
@@ -168,6 +182,35 @@ model User {
   disputes      Dispute[]         @relation("UserDisputes")
   evidences     DisputeEvidence[]
   sellerOrders  Order[]           @relation("SellerOrders")
+  loginLogs     UserLoginLog[]
+}
+
+model AuthCode {
+  id        String        @id @default(uuid())
+  email     String
+  scene     AuthCodeScene
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([email, scene, createdAt])
+  @@index([expiresAt])
+}
+
+model UserLoginLog {
+  id        String   @id @default(uuid())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  email     String
+  ip        String?
+  userAgent String?
+  success   Boolean  @default(true)
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
 }
 
 model UserKyc {
@@ -181,6 +224,18 @@ model UserKyc {
   reason    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SellerApplication {
+  id        String                  @id @default(uuid())
+  user      User                    @relation(fields: [userId], references: [id])
+  userId    String                  @unique
+  status    SellerApplicationStatus @default(PENDING)
+  reason    String?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  @@index([status, createdAt])
 }
 
 model SellerProfile {

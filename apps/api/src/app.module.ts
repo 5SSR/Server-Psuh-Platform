@@ -14,6 +14,7 @@ import { PaymentModule } from './payment/payment.module';
 import { AdminModule } from './admin/admin.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { NoticeModule } from './notice/notice.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     WalletModule,
     TaskModule,
     PaymentModule,
+    NoticeModule,
     AdminModule
   ],
   controllers: [AppController],
