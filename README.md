@@ -13,7 +13,7 @@
 3. 启动所有应用：`pnpm dev`（turbo 并行 web + api）
 4. 复制 `.env.example` 为 `.env`，填入数据库、Redis、支付/邮件等配置。
 5. 首次建库：`pnpm --filter @idc/api prisma:generate`，然后 `pnpm --filter @idc/api prisma:migrate -- --name init`
-6. Swagger 调试：`http://localhost:3000/api/docs`，鉴权使用 Bearer Token（`/auth/login` 获取）
+6. Swagger 调试：`http://localhost:4000/api/docs`，鉴权使用 Bearer Token（`/auth/login` 获取）
 7. 可选：导入示例数据 `pnpm --filter @idc/api prisma:seed`（需先配置 `DATABASE_URL`）
 
 ## 仓库结构
@@ -56,9 +56,10 @@
 
 ## 3. 平台角色
 - 游客：浏览、搜索、查看公告与规则
-- 买家：收藏、下单、支付、验机、售后/纠纷
-- 卖家：发布/编辑商品、交付、提现、查看收益
+- 用户：统一账号，可发布商品、下单支付、交付履约、验机确认、售后/纠纷、提现与资金管理
 - 管理员/中介：审核商品、处理订单、核验、冻结/放款、纠纷仲裁、风控
+
+> 说明：平台仅区分「用户 / 管理员」账号类型；订单中的“买方/卖方”仅表示交易双方身份，不代表账号角色。
 
 ---
 
@@ -133,13 +134,34 @@ Server-Psuh-Platform/
 
 ---
 
-## 8. 当前进度
-- 完成 Monorepo 脚手架（api/web/shared）、全局 TypeScript/ESLint、turbo pipeline。
-- 提供 ERD/状态机/接口草案（`docs/architecture.md`）。
-- 已生成 pnpm-lock，安装脚本可直接启动开发。
+## 8. 当前进度（2026-03-14）
+已完成从“脚手架”到“可本地演示交易闭环”的开发，核心模块如下：
 
-后续优先事项：
-1) 固化数据库 schema（Prisma/TypeORM）与迁移脚本  
-2) 补齐 API 模块：auth/user/product/order/wallet/notice + Swagger/OpenAPI  
-3) 前端对齐接口契约，完善页面与 BFF 调用  
-4) 配置 CI（lint+build）、环境区分与部署脚本  
+- 认证与账号安全：注册/登录、邮箱验证码、找回/重置密码、登录日志与异地登录提醒。
+- 用户中心：`/user/me`、实名认证（KYC）提审与管理员审核流转。
+- 商品中心：商品发布/编辑/提交审核/上下架、商品列表与详情、卖家信用展示。
+- 订单履约：下单、支付、交付、平台核验、买家验机确认、订单时间线。
+- 支付与托管：余额支付、Webhook 回调验签、托管冻结/解冻/放款、退款与纠纷仲裁。
+- 钱包与提现：余额/冻结/流水、提现申请、管理员审核与打款状态流转。
+- 通知中心：用户通知列表/未读/已读，管理员单发与全站广播。
+- 管理后台：用户管理、商品审核、订单核验、结算放款、退款审核、纠纷仲裁、提现审核、运营看板。
+- 定时任务：未支付自动取消、验机超时自动确认、待结算自动放款。
+- 工程能力：Swagger 文档、Jest 基础测试、CI 工作流、开发日志持续记录（`docs/dev-notes.md`）。
+
+### 本地访问地址
+- 前端：`http://localhost:3000`
+- API：`http://localhost:4000/api/v1`
+- Swagger：`http://localhost:4000/api/docs`
+
+### 示例账号（seed）
+执行 `pnpm --filter @idc/api prisma:seed` 后可用：
+- 普通用户：`user@example.com` / `12345678`
+- 管理员：`admin@example.com` / `12345678`
+
+> 可通过环境变量 `SEED_DEMO_PASSWORD` 覆盖默认密码。
+
+### 当前待完善（下一阶段）
+1) 前端页面视觉与交互深化（当前偏管理台风格，需产品化）。
+2) 支付渠道实接（支付宝/微信真实网关）与对账任务。
+3) 风控规则引擎与可配置化策略（限额、黑名单、异常行为联动）。
+4) 自动化测试覆盖提升（订单/支付/钱包/仲裁主链路）。

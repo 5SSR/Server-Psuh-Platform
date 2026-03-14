@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -58,11 +58,9 @@ export default function SellerProductsPage() {
   const [form, setForm] = useState(defaultForm);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
-  const isSeller = useMemo(() => userInfo?.role === 'SELLER', [userInfo]);
-
   const load = useCallback(async () => {
     if (!token) {
-      setError('请先登录卖家账号');
+      setError('请先登录用户账号');
       return;
     }
     setLoading(true);
@@ -189,8 +187,8 @@ export default function SellerProductsPage() {
     <main className="page">
       <header className="section-head">
         <div>
-          <p className="eyebrow">卖家中心</p>
-          <h1>商品管理</h1>
+          <p className="eyebrow">用户中心</p>
+          <h1>我的商品管理</h1>
           <p className="muted">身份：{userInfo?.role || '未知'}</p>
         </div>
         <button onClick={load} className="secondary" disabled={loading}>
@@ -201,9 +199,9 @@ export default function SellerProductsPage() {
       {message && <p className="success">{message}</p>}
       {error && <p className="error">{error}</p>}
 
-      <section className="card">
+        <section className="card">
         <h3>发布新商品</h3>
-        {!isSeller && <p className="muted">仅 SELLER 可以发布商品，请先完成卖家认证。</p>}
+        <p className="muted">当前身份：{userInfo?.role || '未知'}</p>
         <div className="form">
           <label>标题</label>
           <input
@@ -260,7 +258,7 @@ export default function SellerProductsPage() {
             value={form.description}
             onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
           />
-          <button onClick={createProduct} disabled={loading || !isSeller || !form.title}>
+          <button onClick={createProduct} disabled={loading || !form.title}>
             {loading ? '处理中...' : '创建商品'}
           </button>
         </div>

@@ -43,7 +43,22 @@ export class ProductService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          images: true
+          images: true,
+          seller: {
+            select: {
+              id: true,
+              email: true,
+              sellerProfile: {
+                select: {
+                  level: true,
+                  tradeCount: true,
+                  disputeRate: true,
+                  avgDeliveryMinutes: true,
+                  positiveRate: true
+                }
+              }
+            }
+          }
         }
       })
     ]);
@@ -59,7 +74,25 @@ export class ProductService {
   async findOne(id: string) {
     return this.prisma.product.findUnique({
       where: { id },
-      include: { images: true }
+      include: {
+        images: true,
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            createdAt: true,
+            sellerProfile: {
+              select: {
+                level: true,
+                tradeCount: true,
+                disputeRate: true,
+                avgDeliveryMinutes: true,
+                positiveRate: true
+              }
+            }
+          }
+        }
+      }
     });
   }
 

@@ -31,7 +31,7 @@ export class ProductController {
 
   @Get('mine')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   mine(
     @CurrentUser() user: { userId: string },
     @Query() query: QueryMyProductsDto
@@ -46,14 +46,14 @@ export class ProductController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   create(@CurrentUser() user: { userId: string }, @Body() dto: CreateProductDto) {
     return this.productService.create(user.userId, dto);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   update(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,
@@ -64,7 +64,7 @@ export class ProductController {
 
   @Post(':id/submit')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   submit(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,
@@ -75,21 +75,21 @@ export class ProductController {
 
   @Patch(':id/online')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   online(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
     return this.productService.toggleOnline(id, user.userId, true);
   }
 
   @Patch(':id/offline')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   offline(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
     return this.productService.toggleOnline(id, user.userId, false);
   }
 
   @Post(':id/images')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   addImage(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,
@@ -100,7 +100,7 @@ export class ProductController {
 
   @Patch(':id/images/:imageId/delete')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SELLER')
+  @Roles('USER')
   deleteImage(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,

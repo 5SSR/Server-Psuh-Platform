@@ -57,7 +57,7 @@ export default function SellerOrdersPage() {
 
   const load = useCallback(async () => {
     if (!token) {
-      setError('请先登录卖家账号');
+      setError('请先登录用户账号');
       return;
     }
     setLoading(true);
@@ -139,8 +139,8 @@ export default function SellerOrdersPage() {
     <main className="page">
       <header className="section-head">
         <div>
-          <p className="eyebrow">卖家履约</p>
-          <h1>卖家订单中心</h1>
+          <p className="eyebrow">用户履约</p>
+          <h1>我的订单履约</h1>
         </div>
         <button onClick={load} className="secondary" disabled={loading}>
           {loading ? '刷新中...' : '刷新'}
@@ -151,7 +151,7 @@ export default function SellerOrdersPage() {
       {error && <p className="error">{error}</p>}
 
       {orders.length === 0 ? (
-        <p className="muted">暂无卖家订单</p>
+        <p className="muted">暂无可履约订单</p>
       ) : (
         <div className="cards">
           {orders.map((order) => {

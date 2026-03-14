@@ -36,7 +36,7 @@ export class WalletController {
   }
 
   @Get('settlements')
-  @Roles('SELLER')
+  @Roles('USER')
   settlements(
     @CurrentUser() user: { userId: string },
     @Query() query: QuerySettlementDto
@@ -45,7 +45,7 @@ export class WalletController {
   }
 
   @Post('withdrawals')
-  @Roles('SELLER')
+  @Roles('USER')
   applyWithdrawal(
     @CurrentUser() user: { userId: string },
     @Body() dto: ApplyWithdrawDto

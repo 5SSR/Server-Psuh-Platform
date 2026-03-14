@@ -14,7 +14,7 @@ import { DashboardQueryDto } from '../common/dto/dashboard-query.dto';
 
 @Controller('seller/dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SELLER')
+@Roles('USER')
 export class SellerDashboardController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -33,6 +33,16 @@ export class SellerDashboardController {
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId: sellerId },
       select: { id: true, balance: true, frozen: true, currency: true, updatedAt: true }
+    });
+    const sellerProfile = await this.prisma.sellerProfile.findUnique({
+      where: { userId: sellerId },
+      select: {
+        level: true,
+        tradeCount: true,
+        disputeRate: true,
+        avgDeliveryMinutes: true,
+        positiveRate: true
+      }
     });
 
     const [
@@ -236,6 +246,7 @@ export class SellerDashboardController {
         releasedAmount: this.toNumber(settlementReleasedAgg._sum.amount),
         releasedFee: this.toNumber(settlementReleasedAgg._sum.fee)
       },
+      sellerProfile,
       wallet: {
         balance: this.toNumber(wallet?.balance),
         frozen: this.toNumber(wallet?.frozen),

@@ -30,7 +30,7 @@ export class OrderController {
   ) {}
 
   @Post()
-  @Roles('BUYER')
+  @Roles('USER')
   create(@CurrentUser() user: { userId: string }, @Body() dto: CreateOrderDto) {
     return this.orderService.create(user.userId, dto);
   }
@@ -45,7 +45,7 @@ export class OrderController {
   }
 
   @Patch(':id/pay')
-  @Roles('BUYER')
+  @Roles('USER')
   pay(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,
@@ -59,7 +59,7 @@ export class OrderController {
   }
 
   @Patch(':id/deliver')
-  @Roles('SELLER')
+  @Roles('USER')
   deliver(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,
@@ -69,7 +69,7 @@ export class OrderController {
   }
 
   @Patch(':id/confirm')
-  @Roles('BUYER')
+  @Roles('USER')
   confirm(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,

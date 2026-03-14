@@ -15,6 +15,25 @@ import { QuerySettlementDto } from './dto/query-settlement.dto';
 export class WalletService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private presentRole(role: string) {
+    return role === 'ADMIN' ? 'ADMIN' : 'USER';
+  }
+
+  private clampRatio(value: number) {
+    if (!Number.isFinite(value)) return 0;
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return Number(value.toFixed(4));
+  }
+
+  private calcLevelByTradeCount(tradeCount: number) {
+    if (tradeCount >= 100) return 5;
+    if (tradeCount >= 50) return 4;
+    if (tradeCount >= 20) return 3;
+    if (tradeCount >= 5) return 2;
+    return 1;
+  }
+
   private async ensureWallet(userId: string) {
     return this.prisma.wallet.upsert({
       where: { userId },
@@ -88,9 +107,6 @@ export class WalletService {
       if (!user) throw new NotFoundException('用户不存在');
       if (user.status !== 'ACTIVE') {
         throw new ForbiddenException('当前账号状态不可提现');
-      }
-      if (user.role !== 'SELLER') {
-        throw new ForbiddenException('仅认证卖家支持提现');
       }
 
       const wallet = await tx.wallet.upsert({
@@ -197,7 +213,25 @@ export class WalletService {
         take: pageSize
       })
     ]);
-    return { total, list, page, pageSize };
+    return {
+      total,
+      list: list.map((item) => ({
+        ...item,
+        wallet: item.wallet
+          ? {
+              ...item.wallet,
+              user: item.wallet.user
+                ? {
+                    ...item.wallet.user,
+                    role: this.presentRole(item.wallet.user.role)
+                  }
+                : item.wallet.user
+            }
+          : item.wallet
+      })),
+      page,
+      pageSize
+    };
   }
 
   async listSettlementsForAdmin(query: QuerySettlementDto) {
@@ -301,6 +335,90 @@ export class WalletService {
         totalFee: stats._sum.fee ?? new Prisma.Decimal(0)
       }
     };
+  }
+
+  async refreshSellerProfileMetrics(
+    sellerId: string,
+    txClient?: Prisma.TransactionClient
+  ) {
+    const executor = txClient ?? this.prisma;
+
+    const [releasedTradeCount, disputeCount, deliveredOrders] = await Promise.all([
+      executor.settlement.count({
+        where: {
+          sellerId,
+          status: 'RELEASED'
+        }
+      }),
+      executor.dispute.count({
+        where: {
+          order: { sellerId }
+        }
+      }),
+      executor.order.findMany({
+        where: {
+          sellerId,
+          settlement: { status: 'RELEASED' }
+        },
+        select: {
+          id: true,
+          payment: {
+            select: { paidAt: true }
+          },
+          deliveryRecords: {
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: { createdAt: true }
+          }
+        }
+      })
+    ]);
+
+    const deliveryMinutesList = deliveredOrders
+      .map((item) => {
+        const paidAt = item.payment?.paidAt;
+        const deliveredAt = item.deliveryRecords[0]?.createdAt;
+        if (!paidAt || !deliveredAt) return null;
+        const diff = Math.floor((deliveredAt.getTime() - paidAt.getTime()) / 60000);
+        return diff >= 0 ? diff : null;
+      })
+      .filter((item): item is number => item !== null);
+
+    const avgDeliveryMinutes =
+      deliveryMinutesList.length === 0
+        ? 0
+        : Math.round(
+            deliveryMinutesList.reduce((sum, item) => sum + item, 0) /
+              deliveryMinutesList.length
+          );
+
+    const disputeRate =
+      releasedTradeCount === 0
+        ? 0
+        : this.clampRatio(disputeCount / releasedTradeCount);
+    const positiveRate = this.clampRatio(1 - disputeRate);
+    const level = this.calcLevelByTradeCount(releasedTradeCount);
+
+    const profile = await executor.sellerProfile.upsert({
+      where: { userId: sellerId },
+      update: {
+        level,
+        tradeCount: releasedTradeCount,
+        disputeRate,
+        avgDeliveryMinutes,
+        positiveRate
+      },
+      create: {
+        userId: sellerId,
+        level,
+        tradeCount: releasedTradeCount,
+        disputeRate,
+        avgDeliveryMinutes,
+        positiveRate
+      }
+    });
+
+    return profile;
   }
 
   async reviewWithdrawal(withdrawalId: string, adminId: string, dto: ReviewWithdrawDto) {
@@ -602,6 +720,8 @@ export class WalletService {
           remark: '平台放款'
         }
       });
+
+      await this.refreshSellerProfileMetrics(settlement.sellerId, tx);
 
       return { orderId, released: true };
     });

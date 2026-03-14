@@ -512,12 +512,14 @@ export class OrderService {
     });
   }
 
-  async openDispute(orderId: string, userId: string, initiator: 'BUYER' | 'SELLER', dto: DisputeDto) {
+  async openDispute(orderId: string, userId: string, dto: DisputeDto) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('订单不存在');
-      if (initiator === 'BUYER' && order.buyerId !== userId) throw new ForbiddenException('无权操作');
-      if (initiator === 'SELLER' && order.sellerId !== userId) throw new ForbiddenException('无权操作');
+      if (order.buyerId !== userId && order.sellerId !== userId) {
+        throw new ForbiddenException('无权操作');
+      }
+      const initiator = order.sellerId === userId ? 'SELLER' : 'BUYER';
 
       await tx.dispute.upsert({
         where: { orderId },
@@ -660,6 +662,8 @@ export class OrderService {
           remark: `${status} ${result ?? ''}`.trim()
         }
       });
+
+      await this.walletService.refreshSellerProfileMetrics(order.sellerId, tx);
 
       this.logger.log(`纠纷裁决 order=${orderId} status=${status}`);
     });

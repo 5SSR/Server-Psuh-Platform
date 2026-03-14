@@ -28,6 +28,11 @@ const statusLabel: Record<string, string> = {
   rejected: '已驳回'
 };
 
+const roleLabel: Record<string, string> = {
+  USER: '普通用户',
+  ADMIN: '管理员'
+};
+
 export default function AdminWithdrawalsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -128,7 +133,7 @@ export default function AdminWithdrawalsPage() {
               <div className="card-header">
                 <div>
                   <h3>{item.wallet?.user?.email || '未知用户'}</h3>
-                  <p className="muted">{item.wallet?.user?.role}</p>
+                  <p className="muted">{roleLabel[item.wallet?.user?.role] || item.wallet?.user?.role || '-'}</p>
                 </div>
                 <span className="pill">{statusLabel[item.status] || item.status}</span>
               </div>

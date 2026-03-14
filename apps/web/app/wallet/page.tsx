@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -56,8 +56,6 @@ export default function WalletPage() {
   const [withdrawAccount, setWithdrawAccount] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
-
-  const isSeller = useMemo(() => userInfo?.role === 'SELLER', [userInfo]);
 
   const loadAll = useCallback(async () => {
     if (!token) {
@@ -204,10 +202,8 @@ export default function WalletPage() {
         </section>
 
         <section className="card">
-          <h3>提现申请（卖家）</h3>
-          <p className="muted">
-            当前身份：{userInfo?.role || '未知'} {isSeller ? '' : '（仅 SELLER 可申请提现）'}
-          </p>
+          <h3>提现申请</h3>
+          <p className="muted">当前身份：{userInfo?.role || '未知'}</p>
           <div className="form">
             <label>提现金额</label>
             <input
@@ -229,7 +225,7 @@ export default function WalletPage() {
               onChange={(e) => setWithdrawAccount(e.target.value)}
               placeholder="例如：支付宝 138xxxxxx"
             />
-            <button onClick={applyWithdraw} disabled={loading || !withdrawAccount || !isSeller}>
+            <button onClick={applyWithdraw} disabled={loading || !withdrawAccount}>
               {loading ? '处理中...' : '提交提现申请'}
             </button>
           </div>

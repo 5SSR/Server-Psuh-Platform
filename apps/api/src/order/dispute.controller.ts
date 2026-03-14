@@ -12,12 +12,11 @@ export class DisputeController {
 
   @Post(':id/dispute')
   open(
-    @CurrentUser() user: { userId: string; role: string },
+    @CurrentUser() user: { userId: string },
     @Param('id') id: string,
     @Body() dto: DisputeDto
   ) {
-    const initiator = user.role === 'SELLER' ? 'SELLER' : 'BUYER';
-    return this.orderService.openDispute(id, user.userId, initiator as 'BUYER' | 'SELLER', dto);
+    return this.orderService.openDispute(id, user.userId, dto);
   }
 
   @Post(':id/dispute/evidence')

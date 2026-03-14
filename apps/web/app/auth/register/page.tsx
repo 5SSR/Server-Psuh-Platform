@@ -8,7 +8,6 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'BUYER' | 'SELLER'>('BUYER');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -19,7 +18,7 @@ export default function RegisterPage() {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role })
+        body: JSON.stringify({ email, password, role: 'USER' })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '注册失败');
@@ -45,11 +44,6 @@ export default function RegisterPage() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="至少 8 位"
         />
-        <label>角色</label>
-        <select value={role} onChange={(e) => setRole(e.target.value as any)}>
-          <option value="BUYER">买家</option>
-          <option value="SELLER">卖家</option>
-        </select>
         <button onClick={submit} disabled={loading}>
           {loading ? '注册中...' : '注册'}
         </button>

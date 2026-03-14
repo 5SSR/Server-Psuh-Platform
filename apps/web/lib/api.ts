@@ -25,6 +25,18 @@ export interface Product {
   lineType?: string;
   riskTags?: string[];
   expireAt?: string;
+  seller?: {
+    id: string;
+    email: string;
+    createdAt?: string;
+    sellerProfile?: {
+      level: number;
+      tradeCount: number;
+      disputeRate: number;
+      avgDeliveryMinutes: number;
+      positiveRate: number;
+    } | null;
+  };
 }
 
 export interface ProductListResponse {

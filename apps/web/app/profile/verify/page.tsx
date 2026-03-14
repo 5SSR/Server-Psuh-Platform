@@ -11,21 +11,14 @@ type Kyc = {
   reason?: string | null;
 };
 
-type SellerApplication = {
-  status?: string;
-  reason?: string | null;
-};
-
 export default function VerifyCenterPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [kyc, setKyc] = useState<Kyc | null>(null);
-  const [sellerApp, setSellerApp] = useState<SellerApplication | null>(null);
 
   const [realName, setRealName] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [docImages, setDocImages] = useState('');
-  const [sellerReason, setSellerReason] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -34,25 +27,15 @@ export default function VerifyCenterPage() {
       setMessage('请先登录后再进入认证中心');
       return;
     }
-    const [kycRes, sellerRes] = await Promise.all([
-      fetch(`${API_BASE}/user/kyc`, {
-        headers: { Authorization: `Bearer ${token}` }
-      }),
-      fetch(`${API_BASE}/user/seller-application`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-    ]);
+    const kycRes = await fetch(`${API_BASE}/user/kyc`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     const kycData = await kycRes.json();
-    const sellerData = await sellerRes.json();
     if (kycRes.ok) {
       setKyc(kycData);
       if (kycData?.realName) setRealName(kycData.realName);
       if (kycData?.idNumber) setIdNumber(kycData.idNumber);
       if (kycData?.docImages) setDocImages(kycData.docImages);
-    }
-    if (sellerRes.ok) {
-      setSellerApp(sellerData);
-      if (sellerData?.reason) setSellerReason(sellerData.reason);
     }
   }, [token]);
 
@@ -84,30 +67,6 @@ export default function VerifyCenterPage() {
     }
   };
 
-  const submitSellerApplication = async () => {
-    if (!token) return;
-    setLoading(true);
-    setMessage('');
-    try {
-      const res = await fetch(`${API_BASE}/user/seller-application`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ reason: sellerReason || undefined })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || '提交失败');
-      setMessage(data.message || '卖家申请提交成功');
-      await loadStatus();
-    } catch (e: any) {
-      setMessage(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <main className="page">
       <header className="section-head">
@@ -119,45 +78,24 @@ export default function VerifyCenterPage() {
 
       {message && <p className="muted">{message}</p>}
 
-      <div className="detail-grid">
-        <section className="card">
-          <h3>实名认证</h3>
-          <p className="muted">
-            当前状态：{kyc?.status || '未提交'}
-            {kyc?.reason ? `（原因：${kyc.reason}）` : ''}
-          </p>
-          <div className="form">
-            <label>真实姓名</label>
-            <input value={realName} onChange={(e) => setRealName(e.target.value)} />
-            <label>证件号</label>
-            <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
-            <label>凭证链接（可选，多张可逗号分隔）</label>
-            <input value={docImages} onChange={(e) => setDocImages(e.target.value)} />
-            <button onClick={submitKyc} disabled={loading || !realName || !idNumber}>
-              {loading ? '提交中...' : '提交实名认证'}
-            </button>
-          </div>
-        </section>
-
-        <section className="card">
-          <h3>卖家认证</h3>
-          <p className="muted">
-            当前状态：{sellerApp?.status || '未申请'}
-            {sellerApp?.reason ? `（备注：${sellerApp.reason}）` : ''}
-          </p>
-          <div className="form">
-            <label>申请说明（可选）</label>
-            <input
-              value={sellerReason}
-              onChange={(e) => setSellerReason(e.target.value)}
-              placeholder="例如：已有稳定机源，支持快速交付"
-            />
-            <button onClick={submitSellerApplication} disabled={loading}>
-              {loading ? '提交中...' : '提交卖家认证申请'}
-            </button>
-          </div>
-        </section>
-      </div>
+      <section className="card">
+        <h3>实名认证</h3>
+        <p className="muted">
+          当前状态：{kyc?.status || '未提交'}
+          {kyc?.reason ? `（原因：${kyc.reason}）` : ''}
+        </p>
+        <div className="form">
+          <label>真实姓名</label>
+          <input value={realName} onChange={(e) => setRealName(e.target.value)} />
+          <label>证件号</label>
+          <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
+          <label>凭证链接（可选，多张可逗号分隔）</label>
+          <input value={docImages} onChange={(e) => setDocImages(e.target.value)} />
+          <button onClick={submitKyc} disabled={loading || !realName || !idNumber}>
+            {loading ? '提交中...' : '提交实名认证'}
+          </button>
+        </div>
+      </section>
     </main>
   );
 }

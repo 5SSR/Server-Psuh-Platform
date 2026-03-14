@@ -38,6 +38,10 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
+  private presentRole(role: UserRole) {
+    return role === UserRole.ADMIN ? 'ADMIN' : 'USER';
+  }
+
   private normalizeEmail(email: string) {
     return email.trim().toLowerCase();
   }
@@ -163,7 +167,7 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const hash = await bcrypt.hash(dto.password, 12);
     const email = this.normalizeEmail(dto.email);
-    const role = dto.role === UserRole.SELLER ? UserRole.SELLER : UserRole.BUYER;
+    const role = UserRole.BUYER;
     try {
       const user = await this.prisma.user.create({
         data: {
@@ -186,7 +190,10 @@ export class AuthService {
       );
       return {
         token: this.signToken({ sub: user.id, role: user.role }),
-        user,
+        user: {
+          ...user,
+          role: this.presentRole(user.role)
+        },
         verifyRequired: !user.emailVerifiedAt,
         ...this.buildCodeResponse('注册成功，请完成邮箱验证', verifyCode)
       };
@@ -283,7 +290,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: this.presentRole(user.role),
         status: user.status,
         emailVerifiedAt: user.emailVerifiedAt,
         createdAt: user.createdAt

@@ -9,6 +9,6 @@ export class RegisterDto {
   password: string;
 
   @IsOptional()
-  @IsIn(['BUYER', 'SELLER'])
-  role?: 'BUYER' | 'SELLER'; // 默认 BUYER
+  @IsIn(['USER'])
+  role?: 'USER'; // 统一普通用户
 }

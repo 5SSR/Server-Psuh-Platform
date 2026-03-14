@@ -24,6 +24,10 @@ import { ReviewSellerApplicationDto } from './dto/review-seller-application.dto'
 export class AdminUserReviewController {
   constructor(private readonly prisma: PrismaService) {}
 
+  private presentRole(role: string) {
+    return role === 'ADMIN' ? 'ADMIN' : 'USER';
+  }
+
   @Get('kyc')
   async listKyc(@Query() query: AdminQueryDto) {
     const { page = 1, pageSize = 20, status } = query;
@@ -42,7 +46,20 @@ export class AdminUserReviewController {
         take: pageSize
       })
     ]);
-    return { total, list, page, pageSize };
+    return {
+      total,
+      list: list.map((item) => ({
+        ...item,
+        user: item.user
+          ? {
+              ...item.user,
+              role: this.presentRole(item.user.role)
+            }
+          : item.user
+      })),
+      page,
+      pageSize
+    };
   }
 
   @Patch(':userId/kyc')
@@ -104,7 +121,20 @@ export class AdminUserReviewController {
         take: pageSize
       })
     ]);
-    return { total, list, page, pageSize };
+    return {
+      total,
+      list: list.map((item) => ({
+        ...item,
+        user: item.user
+          ? {
+              ...item.user,
+              role: this.presentRole(item.user.role)
+            }
+          : item.user
+      })),
+      page,
+      pageSize
+    };
   }
 
   @Patch(':userId/seller-application')
@@ -123,7 +153,7 @@ export class AdminUserReviewController {
       where: { userId }
     });
     if (!application) {
-      throw new NotFoundException('卖家认证申请不存在');
+      throw new NotFoundException('交易资质申请不存在');
     }
 
     const user = await this.prisma.user.findUnique({
@@ -132,7 +162,7 @@ export class AdminUserReviewController {
     });
     if (!user) throw new NotFoundException('用户不存在');
     if (dto.status === SellerApplicationStatus.APPROVED && user.kyc?.status !== 'approved') {
-      throw new BadRequestException('用户实名认证未通过，不能通过卖家认证');
+      throw new BadRequestException('用户实名认证未通过，不能通过交易资质认证');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -147,7 +177,7 @@ export class AdminUserReviewController {
       if (dto.status === SellerApplicationStatus.APPROVED) {
         await tx.user.update({
           where: { id: userId },
-          data: { role: 'SELLER' }
+          data: { role: 'BUYER' }
         });
 
         await tx.sellerProfile.upsert({
@@ -173,6 +203,6 @@ export class AdminUserReviewController {
       });
     });
 
-    return { message: '卖家认证申请审核完成' };
+    return { message: '交易资质申请审核完成' };
   }
 }

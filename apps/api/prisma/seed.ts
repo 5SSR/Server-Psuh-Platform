@@ -1,23 +1,42 @@
 import { PrismaClient, ProductCategory, DeliveryType, ProductStatus, RiskLevel } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.product.deleteMany({});
+  const demoPassword = process.env.SEED_DEMO_PASSWORD || '12345678';
+  const passwordHash = await bcrypt.hash(demoPassword, 10);
 
-  const seller = await prisma.user.upsert({
-    where: { email: 'seller@example.com' },
-    update: {},
+  const user = await prisma.user.upsert({
+    where: { email: 'user@example.com' },
+    update: {
+      passwordHash,
+      role: 'BUYER'
+    },
     create: {
-      email: 'seller@example.com',
-      passwordHash: 'placeholder', // 仅示例
-      role: 'SELLER'
+      email: 'user@example.com',
+      passwordHash,
+      role: 'BUYER'
+    }
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'admin@example.com' },
+    update: {
+      passwordHash,
+      role: 'ADMIN'
+    },
+    create: {
+      email: 'admin@example.com',
+      passwordHash,
+      role: 'ADMIN'
     }
   });
 
   const now = new Date();
   const products = [
     {
+      code: 'DEMO-HK-CN2-001',
       title: '香港 CN2 2C4G 独服',
       category: ProductCategory.DEDICATED,
       region: 'Hong Kong',
@@ -33,6 +52,7 @@ async function main() {
       description: '2C4G 40G SSD 10M带宽，适合建站'
     },
     {
+      code: 'DEMO-JP-VPS-001',
       title: '日本 1C2G VPS BGP',
       category: ProductCategory.VPS,
       region: 'Tokyo',
@@ -48,6 +68,7 @@ async function main() {
       description: '适合轻量博客、学习'
     },
     {
+      code: 'DEMO-US-NAT-001',
       title: '美国 NAT 50 端口',
       category: ProductCategory.NAT,
       region: 'Los Angeles',
@@ -65,10 +86,15 @@ async function main() {
   ];
 
   for (const p of products) {
-    await prisma.product.create({
-      data: {
-        sellerId: seller.id,
-        code: `DEMO-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+    await prisma.product.upsert({
+      where: { code: p.code },
+      update: {
+        sellerId: user.id,
+        status: ProductStatus.ONLINE,
+        ...p
+      },
+      create: {
+        sellerId: user.id,
         status: ProductStatus.ONLINE,
         ...p
       }
@@ -76,7 +102,11 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log('Seeded demo products and seller');
+  console.log('Seeded demo products and accounts');
+  // eslint-disable-next-line no-console
+  console.log('Demo accounts: user@example.com / admin@example.com');
+  // eslint-disable-next-line no-console
+  console.log(`Demo password: ${demoPassword}`);
 }
 
 main()

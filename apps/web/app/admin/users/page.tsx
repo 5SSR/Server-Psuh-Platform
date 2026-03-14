@@ -7,7 +7,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/
 type UserItem = {
   id: string;
   email: string;
-  role: 'BUYER' | 'SELLER' | 'ADMIN';
+  role: 'USER' | 'ADMIN';
   status: 'ACTIVE' | 'BANNED';
   emailVerifiedAt?: string | null;
   lastLoginAt?: string | null;
@@ -29,8 +29,7 @@ type UserItem = {
 };
 
 const roleLabel: Record<string, string> = {
-  BUYER: '买家',
-  SELLER: '卖家',
+  USER: '普通用户',
   ADMIN: '管理员'
 };
 
@@ -127,8 +126,7 @@ export default function AdminUsersPage() {
           <label>角色筛选</label>
           <select value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="">全部</option>
-            <option value="BUYER">BUYER</option>
-            <option value="SELLER">SELLER</option>
+            <option value="USER">USER</option>
             <option value="ADMIN">ADMIN</option>
           </select>
         </div>
@@ -165,7 +163,7 @@ export default function AdminUsersPage() {
               <p className="muted">角色：{roleLabel[item.role] || item.role}</p>
               <p className="muted">邮箱验证：{item.emailVerifiedAt ? '已验证' : '未验证'}</p>
               <p className="muted">KYC：{item.kyc?.status || '未提交'}</p>
-              <p className="muted">卖家认证：{item.sellerApplication?.status || '未申请'}</p>
+              <p className="muted">交易资质：{item.sellerApplication?.status || '未申请'}</p>
               <p className="muted">
                 钱包余额：¥{Number(item.wallet?.balance || 0).toFixed(2)} · 冻结：¥
                 {Number(item.wallet?.frozen || 0).toFixed(2)}

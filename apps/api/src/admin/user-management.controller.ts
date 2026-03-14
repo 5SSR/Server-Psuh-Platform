@@ -14,7 +14,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { NoticeChannel, UserStatus } from '@prisma/client';
+import { NoticeChannel, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
@@ -24,21 +24,31 @@ import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 export class AdminUserManagementController {
   constructor(private readonly prisma: PrismaService) {}
 
+  private presentRole(role: string) {
+    return role === 'ADMIN' ? 'ADMIN' : 'USER';
+  }
+
   @Get()
   async list(@Query() query: QueryUserDto) {
     const { page = 1, pageSize = 20, role, status, keyword } = query;
-    const where = {
-      ...(role ? { role } : {}),
-      ...(status ? { status } : {}),
-      ...(keyword
-        ? {
-            OR: [
-              { email: { contains: keyword } },
-              { id: { contains: keyword } }
-            ]
-          }
-        : {})
-    };
+    const where: Prisma.UserWhereInput = {};
+
+    if (role === 'ADMIN') {
+      where.role = UserRole.ADMIN;
+    } else if (role === 'USER') {
+      where.role = { in: [UserRole.BUYER, UserRole.SELLER] };
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (keyword) {
+      where.OR = [
+        { email: { contains: keyword } },
+        { id: { contains: keyword } }
+      ];
+    }
 
     const [total, list] = await this.prisma.$transaction([
       this.prisma.user.count({ where }),
@@ -79,7 +89,15 @@ export class AdminUserManagementController {
       })
     ]);
 
-    return { total, list, page, pageSize };
+    return {
+      total,
+      list: list.map((item) => ({
+        ...item,
+        role: this.presentRole(item.role)
+      })),
+      page,
+      pageSize
+    };
   }
 
   @Patch(':userId/status')
@@ -127,6 +145,7 @@ export class AdminUserManagementController {
       message: dto.status === UserStatus.BANNED ? '账号已封禁' : '账号已恢复',
       user: {
         id: updated.id,
+        role: this.presentRole(updated.role),
         status: updated.status
       }
     };

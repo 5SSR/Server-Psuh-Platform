@@ -9,6 +9,10 @@ import { CreateAdminNoticeDto } from './dto/create-admin-notice.dto';
 export class NoticeService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private presentRole(role: string) {
+    return role === 'ADMIN' ? 'ADMIN' : 'USER';
+  }
+
   async listMine(userId: string, query: QueryNoticeDto) {
     const { page = 1, pageSize = 20, status, type } = query;
     const where = {
@@ -107,7 +111,20 @@ export class NoticeService {
       })
     ]);
 
-    return { total, list, page, pageSize };
+    return {
+      total,
+      list: list.map((item) => ({
+        ...item,
+        user: item.user
+          ? {
+              ...item.user,
+              role: this.presentRole(item.user.role)
+            }
+          : item.user
+      })),
+      page,
+      pageSize
+    };
   }
 
   async createByAdmin(adminId: string, dto: CreateAdminNoticeDto) {

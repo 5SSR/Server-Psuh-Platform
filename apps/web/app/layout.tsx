@@ -19,10 +19,10 @@ export default function RootLayout({
           <div className="logo">IDC 二手交易</div>
           <div className="nav-links">
             <Link href="/products">商品</Link>
-            <Link href="/seller/dashboard">卖家看板</Link>
-            <Link href="/seller/products">卖家商品</Link>
-            <Link href="/seller/orders">卖家订单</Link>
-            <Link href="/seller/settlements">卖家结算</Link>
+            <Link href="/seller/dashboard">用户看板</Link>
+            <Link href="/seller/products">我的商品</Link>
+            <Link href="/seller/orders">我的履约</Link>
+            <Link href="/seller/settlements">我的结算</Link>
             <Link href="/orders">订单</Link>
             <Link href="/wallet">钱包</Link>
             <Link href="/notices">通知</Link>

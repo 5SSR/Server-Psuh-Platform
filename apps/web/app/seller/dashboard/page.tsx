@@ -23,6 +23,13 @@ type SellerOverview = {
     releasedAmount: number;
     releasedFee: number;
   };
+  sellerProfile?: {
+    level: number;
+    tradeCount: number;
+    disputeRate: number;
+    avgDeliveryMinutes: number;
+    positiveRate: number;
+  } | null;
   wallet: {
     balance: number;
     frozen: number;
@@ -67,7 +74,7 @@ export default function SellerDashboardPage() {
 
   const load = useCallback(async () => {
     if (!token) {
-      setError('请先登录卖家账号');
+      setError('请先登录用户账号');
       return;
     }
     setLoading(true);
@@ -77,7 +84,7 @@ export default function SellerDashboardPage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message || '读取卖家看板失败');
+      if (!res.ok) throw new Error(json.message || '读取用户看板失败');
       setData(json);
     } catch (e: any) {
       setError(e.message || '读取失败');
@@ -94,8 +101,8 @@ export default function SellerDashboardPage() {
     <main className="page">
       <header className="section-head">
         <div>
-          <p className="eyebrow">卖家运营</p>
-          <h1>卖家总览看板</h1>
+          <p className="eyebrow">用户运营</p>
+          <h1>用户总览看板</h1>
         </div>
         <div className="actions">
           <select value={days} onChange={(e) => setDays(e.target.value)}>
@@ -138,6 +145,18 @@ export default function SellerDashboardPage() {
           </section>
 
           <section className="detail-grid" style={{ marginTop: 16 }}>
+            <article className="card">
+              <h3>用户信誉画像</h3>
+              <p className="muted">等级：Lv.{data.sellerProfile?.level ?? 1}</p>
+              <p className="muted">成交：{data.sellerProfile?.tradeCount ?? 0}</p>
+              <p className="muted">平均交付：{data.sellerProfile?.avgDeliveryMinutes ?? 0} 分钟</p>
+              <p className="muted">
+                纠纷率：{((data.sellerProfile?.disputeRate ?? 0) * 100).toFixed(2)}%
+              </p>
+              <p className="muted">
+                好评率：{((data.sellerProfile?.positiveRate ?? 0) * 100).toFixed(2)}%
+              </p>
+            </article>
             <article className="card">
               <h3>商品状态</h3>
               {Object.entries(data.products.byStatus).map(([k, v]) => (

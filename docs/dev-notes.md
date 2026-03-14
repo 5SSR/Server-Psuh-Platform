@@ -94,6 +94,17 @@
 - 18:09 P0-11 卖家经营看板（后端）：新增卖家看板接口 `GET /seller/dashboard/overview`，统计卖家商品/订单状态、近周期成交额、结算待放款与已放款、钱包余额、提现状态分布、最近订单与最近结算。
 - 18:10 P0-11 看板页面（前端）：新增 `/admin/dashboard` 与 `/seller/dashboard` 页面，支持 7/30/90 天区间切换并展示核心 KPI；导航新增“运营看板”“卖家看板”入口。
 - 18:12 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；前端构建阶段 `fetch failed` 仍为本地 API 未启动导致的静态预渲染提示，不影响构建成功。
+- 18:14 P0-12 卖家信用体系（后端）：新增 `refreshSellerProfileMetrics` 指标计算（成交单量、交付平均时长、纠纷率、好评率、等级），并在 `releaseSettlement` 与 `resolveDispute` 后自动刷新卖家信用画像。
+- 18:15 P0-12 卖家信用体系（后端接口数据增强）：商品列表/详情接口补充卖家信息与 `sellerProfile` 指标；新增用户侧 `GET /user/seller-profile` 查询当前账号信用档案。
+- 18:16 P0-12 卖家信用体系（前端）：商品列表与商品详情新增卖家信誉展示（等级、成交、交付时效、纠纷率、好评率）；卖家看板增加“卖家信誉画像”卡片。
+- 18:17 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过；前端构建阶段 `fetch failed` 仍是本地 API 未启动导致的预渲染提示，不影响构建结果。
+- 18:28 账号角色收敛（USER/ADMIN）修复：修正 `apps/api/src/admin/user-management.controller.ts` Prisma 查询类型，显式使用 `UserRole` 与 `Prisma.UserWhereInput`，解决 API 构建报错。
+- 18:31 接口返回角色统一：`admin/user-review`、`wallet/listWithdrawalsForAdmin`、`notice/listForAdmin` 增加角色映射，所有返回角色统一输出为 `USER` / `ADMIN`。
+- 18:33 文案统一：`apps/api/src/user/user.controller.ts` 与 `apps/api/src/admin/user-review.controller.ts` 将“卖家认证”文案改为“交易资质”，避免账号角色歧义；前端 `admin/dashboard`、`admin/users` 同步改文案。
+- 18:35 示例账号收敛：`apps/api/prisma/seed.ts` 改为初始化 `user@example.com`（普通用户）与 `admin@example.com`（管理员），并生成可登录密码（默认 `12345678`，可用 `SEED_DEMO_PASSWORD` 覆盖）。
+- 18:36 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 全部通过。
+- 18:37 Seed 幂等修复：将 `prisma/seed.ts` 从 `deleteMany + random code` 调整为“固定商品编码 + upsert”，避免历史订单外键导致的种子执行失败。
+- 18:38 联调验证：执行 `pnpm --filter @idc/api prisma:seed` 成功；通过 `/auth/login` 验证 `user@example.com` 与 `admin@example.com` 均可登录且返回角色分别为 `USER`/`ADMIN`；本地页面 `http://localhost:3000` 与 API `http://localhost:4000/api/v1/products` 可访问。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。

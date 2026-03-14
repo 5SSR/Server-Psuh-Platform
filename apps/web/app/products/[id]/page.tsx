@@ -27,6 +27,16 @@ export default async function ProductDetail({ params }: { params: { id: string }
         </section>
 
         <section className="card">
+          <h3>卖家信誉</h3>
+          <p>卖家邮箱：{detail.seller?.email || '未知'}</p>
+          <p>信誉等级：Lv.{detail.seller?.sellerProfile?.level ?? 1}</p>
+          <p>累计成交：{detail.seller?.sellerProfile?.tradeCount ?? 0} 单</p>
+          <p>平均交付：{detail.seller?.sellerProfile?.avgDeliveryMinutes ?? 0} 分钟</p>
+          <p>纠纷率：{((detail.seller?.sellerProfile?.disputeRate ?? 0) * 100).toFixed(2)}%</p>
+          <p>好评率：{((detail.seller?.sellerProfile?.positiveRate ?? 0) * 100).toFixed(2)}%</p>
+        </section>
+
+        <section className="card">
           <h3>风险标签</h3>
           <div className="tags">
             {(detail.riskTags ?? ['暂无']).map((t) => (

@@ -19,6 +19,10 @@ import { NoticeChannel } from '@prisma/client';
 export class UserController {
   constructor(private readonly prisma: PrismaService) {}
 
+  private presentRole(role: string) {
+    return role === 'ADMIN' ? 'ADMIN' : 'USER';
+  }
+
   // 获取当前用户的基础信息
   @Get('me')
   async me(@CurrentUser() user: { userId: string }) {
@@ -33,7 +37,18 @@ export class UserController {
         createdAt: true
       }
     });
-    return info;
+    if (!info) return null;
+    return {
+      ...info,
+      role: this.presentRole(info.role)
+    };
+  }
+
+  @Get('seller-profile')
+  async sellerProfile(@CurrentUser() user: { userId: string }) {
+    return this.prisma.sellerProfile.findUnique({
+      where: { userId: user.userId }
+    });
   }
 
   @Get('kyc')
@@ -100,7 +115,7 @@ export class UserController {
   ) {
     const userInfo = await this.prisma.user.findUnique({
       where: { id: user.userId },
-      select: { id: true, role: true }
+      select: { id: true }
     });
     if (!userInfo) throw new NotFoundException('用户不存在');
 
@@ -115,10 +130,10 @@ export class UserController {
       where: { userId: user.userId }
     });
     if (exists?.status === 'PENDING') {
-      throw new BadRequestException('卖家认证申请审核中，请勿重复提交');
+      throw new BadRequestException('交易资质申请审核中，请勿重复提交');
     }
-    if (exists?.status === 'APPROVED' || userInfo.role === 'SELLER') {
-      return { message: '你已经是认证卖家' };
+    if (exists?.status === 'APPROVED') {
+      return { message: '你已完成交易资质认证' };
     }
 
     const application = await this.prisma.sellerApplication.upsert({
@@ -143,6 +158,6 @@ export class UserController {
       }
     });
 
-    return { message: '卖家认证申请已提交，等待管理员审核', application };
+    return { message: '交易资质申请已提交，等待管理员审核', application };
   }
 }

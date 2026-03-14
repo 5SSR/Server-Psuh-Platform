@@ -9,7 +9,6 @@ import {
   Prisma,
   ProductStatus,
   SettlementStatus,
-  UserRole,
   UserStatus
 } from '@prisma/client';
 import { DashboardQueryDto } from '../common/dto/dashboard-query.dto';
@@ -33,8 +32,7 @@ export class AdminDashboardController {
       totalUsers,
       activeUsers,
       bannedUsers,
-      sellerUsers,
-      buyerUsers,
+      regularUsers,
       newUsersInRange,
       productDraftCount,
       productPendingCount,
@@ -65,8 +63,9 @@ export class AdminDashboardController {
       this.prisma.user.count(),
       this.prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
       this.prisma.user.count({ where: { status: UserStatus.BANNED } }),
-      this.prisma.user.count({ where: { role: UserRole.SELLER } }),
-      this.prisma.user.count({ where: { role: UserRole.BUYER } }),
+      this.prisma.user.count({
+        where: { role: { in: ['BUYER', 'SELLER'] } }
+      }),
       this.prisma.user.count({
         where: {
           createdAt: { gte: since }
@@ -174,8 +173,7 @@ export class AdminDashboardController {
         total: totalUsers,
         active: activeUsers,
         banned: bannedUsers,
-        sellers: sellerUsers,
-        buyers: buyerUsers,
+        regular: regularUsers,
         newInRange: newUsersInRange
       },
       products: {
@@ -199,6 +197,7 @@ export class AdminDashboardController {
         refundPendingCount,
         disputeOpenCount,
         kycPendingCount,
+        qualificationPendingCount: sellerAppPendingCount,
         sellerAppPendingCount,
         failedLogin24h
       },

@@ -10,8 +10,7 @@ type Overview = {
     total: number;
     active: number;
     banned: number;
-    sellers: number;
-    buyers: number;
+    regular: number;
     newInRange: number;
   };
   products: {
@@ -35,6 +34,7 @@ type Overview = {
     refundPendingCount: number;
     disputeOpenCount: number;
     kycPendingCount: number;
+    qualificationPendingCount?: number;
     sellerAppPendingCount: number;
     failedLogin24h: number;
   };
@@ -135,8 +135,7 @@ export default function AdminDashboardPage() {
               <h3>用户结构</h3>
               <p className="muted">活跃：{data.users.active}</p>
               <p className="muted">封禁：{data.users.banned}</p>
-              <p className="muted">卖家：{data.users.sellers}</p>
-              <p className="muted">买家：{data.users.buyers}</p>
+              <p className="muted">普通用户：{data.users.regular}</p>
             </article>
             <article className="card">
               <h3>商品状态</h3>
@@ -157,7 +156,7 @@ export default function AdminDashboardPage() {
             <article className="card">
               <h3>审核积压</h3>
               <p className="muted">KYC 待审：{data.risk.kycPendingCount}</p>
-              <p className="muted">卖家认证待审：{data.risk.sellerAppPendingCount}</p>
+              <p className="muted">交易资质待审：{data.risk.qualificationPendingCount ?? data.risk.sellerAppPendingCount}</p>
               <p className="muted">近 {data.range.days} 天新商品：{data.products.newInRange}</p>
             </article>
           </section>
