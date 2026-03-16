@@ -5,6 +5,8 @@ import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
+type Channel = 'BALANCE' | 'ALIPAY' | 'WECHAT' | 'MANUAL';
+
 type Order = {
   id: string;
   status: string;
@@ -35,6 +37,31 @@ type DisputeInfo = {
   }>;
 };
 
+type PaymentIntent = {
+  payUrl?: string;
+  qrData?: string;
+  webhook?: {
+    url?: string;
+    payload?: Record<string, unknown>;
+  };
+};
+
+type PaymentStatusInfo = {
+  order?: {
+    status?: string;
+    payStatus?: string;
+    payChannel?: string;
+  };
+  payment?: {
+    channel?: string;
+    tradeNo?: string;
+    amount?: number | string;
+    payStatus?: string;
+    paidAt?: string;
+  } | null;
+  nextAction?: string;
+};
+
 const statusLabel: Record<string, string> = {
   PENDING_PAYMENT: '待支付',
   PAID_WAITING_DELIVERY: '待交付',
@@ -59,6 +86,9 @@ export default function OrdersPage() {
   const [disputeMap, setDisputeMap] = useState<Record<string, DisputeInfo | null>>({});
   const [timelineLoadingId, setTimelineLoadingId] = useState('');
   const [disputeLoadingId, setDisputeLoadingId] = useState('');
+  const [payChannelByOrder, setPayChannelByOrder] = useState<Record<string, Channel>>({});
+  const [paymentIntentMap, setPaymentIntentMap] = useState<Record<string, PaymentIntent>>({});
+  const [paymentStatusMap, setPaymentStatusMap] = useState<Record<string, PaymentStatusInfo>>({});
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -88,26 +118,97 @@ export default function OrdersPage() {
     load();
   }, [load]);
 
+  const selectedChannel = (orderId: string): Channel => payChannelByOrder[orderId] || 'BALANCE';
+
+  const paymentHint = (orderId: string) => {
+    const selected = selectedChannel(orderId);
+    const currentPayStatus = paymentStatusMap[orderId]?.order?.payStatus;
+    if (selected === 'BALANCE') {
+      return '余额支付会直接扣减钱包可用余额，并立即推进到待交付状态。';
+    }
+    if (currentPayStatus === 'PAID') {
+      return '该订单已完成支付，可刷新订单列表确认后续履约状态。';
+    }
+    if (currentPayStatus === 'UNPAID') {
+      return '当前仍未支付，可切换渠道后重试，或使用“模拟支付成功”完成联调。';
+    }
+    return '第三方渠道支付需等待回调确认，超时可切换渠道后重新发起。';
+  };
+
   const pay = async (orderId: string) => {
     if (!token) return;
     setLoading(true);
     setMessage('');
     setError('');
     try {
+      const channel = selectedChannel(orderId);
       const res = await fetch(`${API_BASE}/orders/${orderId}/pay`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ channel: 'BALANCE' })
+        body: JSON.stringify({ channel })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '支付失败');
-      setMessage('余额支付成功，等待卖家交付');
-      await load();
+      if (channel === 'BALANCE') {
+        setMessage('余额支付成功，等待卖家交付');
+        await load();
+        return;
+      }
+
+      if (data?.checkout) {
+        setPaymentIntentMap((prev) => ({
+          ...prev,
+          [orderId]: data.checkout
+        }));
+      }
+      setMessage('支付意图已生成，可跳转支付或执行本地模拟回调');
+      await refreshPayStatus(orderId);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshPayStatus = async (orderId: string) => {
+    if (!token) return;
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/payments/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '读取支付状态失败');
+      setPaymentStatusMap((prev) => ({
+        ...prev,
+        [orderId]: data
+      }));
+      setMessage('支付状态已刷新');
+    } catch (e: any) {
+      setError(e.message || '读取支付状态失败');
+    }
+  };
+
+  const mockPaySuccess = async (orderId: string) => {
+    if (!token) return;
+    setLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/payments/${orderId}/mock-success`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '模拟支付失败');
+      setMessage(data?.alreadyPaid ? '该订单已是支付状态' : '已模拟支付成功');
+      await refreshPayStatus(orderId);
+      await load();
+    } catch (e: any) {
+      setError(e.message || '模拟支付失败');
     } finally {
       setLoading(false);
     }
@@ -301,7 +402,17 @@ export default function OrdersPage() {
               </Link>
               {order.status === 'PENDING_PAYMENT' && (
                 <button onClick={() => pay(order.id)} disabled={loading}>
-                  余额支付
+                  发起支付
+                </button>
+              )}
+              {order.status === 'PENDING_PAYMENT' && (
+                <button onClick={() => refreshPayStatus(order.id)} disabled={loading} className="secondary">
+                  刷新支付状态
+                </button>
+              )}
+              {order.status === 'PENDING_PAYMENT' && (
+                <button onClick={() => mockPaySuccess(order.id)} disabled={loading} className="secondary">
+                  模拟支付成功
                 </button>
               )}
               {order.status === 'BUYER_CHECKING' && (
@@ -330,6 +441,27 @@ export default function OrdersPage() {
                 </button>
               )}
             </div>
+
+            {order.status === 'PENDING_PAYMENT' && (
+              <div className="form">
+                <label>支付渠道</label>
+                <select
+                  value={selectedChannel(order.id)}
+                  onChange={(e) =>
+                    setPayChannelByOrder((prev) => ({
+                      ...prev,
+                      [order.id]: e.target.value as Channel
+                    }))
+                  }
+                >
+                  <option value="BALANCE">BALANCE（余额）</option>
+                  <option value="ALIPAY">ALIPAY（模拟）</option>
+                  <option value="WECHAT">WECHAT（模拟）</option>
+                  <option value="MANUAL">MANUAL（人工）</option>
+                </select>
+                <p className="muted">{paymentHint(order.id)}</p>
+              </div>
+            )}
 
             {(order.status === 'PAID_WAITING_DELIVERY' || order.status === 'BUYER_CHECKING') && (
               <div className="form">
@@ -381,6 +513,38 @@ export default function OrdersPage() {
                 <button onClick={() => addEvidence(order.id)} disabled={loading}>
                   补充证据
                 </button>
+              </div>
+            )}
+
+            {paymentIntentMap[order.id] && (
+              <div className="card nested">
+                <h3>支付意图</h3>
+                <p className="muted">跳转地址：{paymentIntentMap[order.id]?.payUrl || '-'}</p>
+                <p className="muted">二维码串：{paymentIntentMap[order.id]?.qrData || '-'}</p>
+                <p className="muted">回调地址：{paymentIntentMap[order.id]?.webhook?.url || '-'}</p>
+                {paymentIntentMap[order.id]?.webhook?.payload && (
+                  <pre className="code">
+                    {JSON.stringify(paymentIntentMap[order.id]?.webhook?.payload, null, 2)}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {paymentStatusMap[order.id] && (
+              <div className="card nested">
+                <h3>支付状态回执</h3>
+                <p className="muted">订单状态：{paymentStatusMap[order.id]?.order?.status || '-'}</p>
+                <p className="muted">支付状态：{paymentStatusMap[order.id]?.order?.payStatus || '-'}</p>
+                <p className="muted">支付渠道：{paymentStatusMap[order.id]?.order?.payChannel || '-'}</p>
+                <p className="muted">交易号：{paymentStatusMap[order.id]?.payment?.tradeNo || '-'}</p>
+                <p className="muted">
+                  回执支付时间：
+                  {(() => {
+                    const paidAt = paymentStatusMap[order.id]?.payment?.paidAt;
+                    return paidAt ? new Date(paidAt).toLocaleString('zh-CN') : '未支付';
+                  })()}
+                </p>
+                <p className="muted">下一步动作：{paymentStatusMap[order.id]?.nextAction || '-'}</p>
               </div>
             )}
 

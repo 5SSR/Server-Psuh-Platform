@@ -71,8 +71,9 @@ body {
   top: 0;
   z-index: 10;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
   padding: 16px 8vw;
   background: rgba(11, 16, 33, 0.85);
   backdrop-filter: blur(8px);
@@ -87,11 +88,32 @@ body {
 .nav-links {
   display: flex;
   gap: 18px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .nav-links a {
   color: var(--text);
   text-decoration: none;
+}
+
+.nav-role {
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.nav-btn {
+  border: 1px solid var(--border);
+  background: var(--ghost);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
 }
 
 .hero {
@@ -302,4 +324,16 @@ button.secondary,
   border: 1px solid var(--border);
   overflow-x: auto;
   color: #cfe4ff;
+}
+
+@media (max-width: 960px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nav-links {
+    justify-content: flex-start;
+    gap: 12px;
+  }
 }

@@ -9,6 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PayOrderDto } from '../order/dto/pay-order.dto';
 import { OrderService } from '../order/order.service';
 import { createHmac } from 'crypto';
+import { QueryPaymentDto } from './dto/query-payment.dto';
+import { ReviewPaymentDto } from './dto/review-payment.dto';
 
 @Injectable()
 export class PaymentService {
@@ -102,6 +104,116 @@ export class PaymentService {
         }
       },
       message: '请跳转第三方支付或在本地调用 webhook 完成模拟'
+    };
+  }
+
+  async listForAdmin(query: QueryPaymentDto) {
+    const { page = 1, pageSize = 20, payStatus, channel, orderId, tradeNo, userId } = query;
+
+    const where: Prisma.PaymentWhereInput = {
+      ...(payStatus ? { payStatus } : {}),
+      ...(channel ? { channel } : {}),
+      ...(orderId ? { orderId } : {}),
+      ...(tradeNo
+        ? {
+            tradeNo: {
+              contains: tradeNo
+            }
+          }
+        : {}),
+      ...(userId
+        ? {
+            order: {
+              OR: [{ buyerId: userId }, { sellerId: userId }]
+            }
+          }
+        : {})
+    };
+
+    const [total, list] = await this.prisma.$transaction([
+      this.prisma.payment.count({ where }),
+      this.prisma.payment.findMany({
+        where,
+        include: {
+          order: {
+            select: {
+              id: true,
+              status: true,
+              payStatus: true,
+              payChannel: true,
+              price: true,
+              fee: true,
+              buyer: {
+                select: { id: true, email: true }
+              },
+              seller: {
+                select: { id: true, email: true }
+              },
+              product: {
+                select: { id: true, title: true, code: true }
+              }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+
+    return { total, list, page, pageSize };
+  }
+
+  async reviewPayment(orderId: string, adminId: string, dto: ReviewPaymentDto) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { orderId },
+      select: {
+        id: true,
+        orderId: true,
+        notifyPayload: true
+      }
+    });
+    if (!payment) throw new NotFoundException('支付记录不存在');
+
+    const payload = this.asPayloadObject(payment.notifyPayload);
+    const previousReview = this.asPayloadObject(payload['adminReview'] as any);
+    const review = {
+      ...previousReview,
+      status: dto.status,
+      remark: dto.remark?.trim() || null,
+      reviewedBy: adminId,
+      reviewedAt: new Date().toISOString()
+    };
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const nextPayment = await tx.payment.update({
+        where: { orderId },
+        data: {
+          notifyPayload: {
+            ...payload,
+            adminReview: review
+          } as any
+        }
+      });
+
+      await tx.orderLog.create({
+        data: {
+          orderId,
+          action: 'PAYMENT_REVIEW',
+          actorType: 'ADMIN',
+          actorId: adminId,
+          remark: dto.remark
+            ? `支付排查：${dto.status} / ${dto.remark}`
+            : `支付排查：${dto.status}`
+        }
+      });
+
+      return nextPayment;
+    });
+
+    return {
+      message: '支付排查结果已保存',
+      payment: updated
     };
   }
 
@@ -210,5 +322,10 @@ export class PaymentService {
 
   private get payEntryBase() {
     return process.env.PAY_ENTRY_BASE || 'https://pay.mock.local';
+  }
+
+  private asPayloadObject(input: Prisma.JsonValue | null | undefined) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+    return { ...(input as Record<string, unknown>) };
   }
 }

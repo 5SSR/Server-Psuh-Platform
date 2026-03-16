@@ -105,6 +105,17 @@
 - 18:36 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 全部通过。
 - 18:37 Seed 幂等修复：将 `prisma/seed.ts` 从 `deleteMany + random code` 调整为“固定商品编码 + upsert”，避免历史订单外键导致的种子执行失败。
 - 18:38 联调验证：执行 `pnpm --filter @idc/api prisma:seed` 成功；通过 `/auth/login` 验证 `user@example.com` 与 `admin@example.com` 均可登录且返回角色分别为 `USER`/`ADMIN`；本地页面 `http://localhost:3000` 与 API `http://localhost:4000/api/v1/products` 可访问。
+- 18:47 前端 UI 故障排查：定位到 `next dev` 进程异常导致 `/_next/static/css/app/layout.css` 返回 404（样式未加载）；重启 Web 开发服务后样式文件恢复 200，页面 UI 恢复正常。
+- 19:01 全量模拟数据填充：重构 `apps/api/prisma/seed.ts`，覆盖用户/实名认证/交易资质/钱包/商品（草稿+待审+上架+下架）/订单全状态/支付/交付/核验/结算/退款/纠纷/提现/通知/验证码/登录日志；执行 `pnpm --filter @idc/api prisma:seed` 成功，并校验 demo 订单 9 个状态齐全。
+- 21:32 前端权限模块补齐：新增 `AuthGuard` 与分区布局守卫（`app/admin|seller|orders|wallet|notices|profile/layout.tsx`），实现登录态拦截与管理员页面权限校验，未登录自动跳转登录页并携带 redirect。
+- 21:36 导航与登录体验优化：新增 `components/top-nav.tsx`，按当前登录角色动态展示导航（游客/用户/管理员），支持一键退出；登录/注册页支持 redirect 回跳。
+- 21:41 回归验证：`pnpm --filter @idc/web build`、`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test` 通过（Web 构建阶段仍可能出现本地 API 未启动导致的 `fetch failed` 提示，不影响构建产物）。
+- 21:45 支付监控模块（后端）：新增 `GET /admin/payments`，支持按 `payStatus/channel/orderId/tradeNo/userId` 筛选支付记录，返回支付单 + 订单买卖双方 + 商品信息，用于运营与财务排查。
+- 21:46 支付监控模块（前端）：新增管理页 `apps/web/app/admin/payments/page.tsx`，支持支付状态/渠道/订单号/交易号/用户ID筛选；导航新增“支付监控”入口。
+- 21:47 买家订单支付体验增强：升级 `apps/web/app/orders/page.tsx`，待支付订单支持多渠道发起支付（BALANCE/ALIPAY/WECHAT/MANUAL）、支付状态刷新、模拟支付成功；新增支付意图与回执展示卡片（含 webhook payload）。
+- 21:47 联调验证：启动 API 后通过 `curl` 验证 `/admin/payments` 返回正确；`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过。
+- 21:51 支付风控补强（后端）：`PaymentWebhookService` 新增渠道一致性校验（URL channel 与 body channel 必须一致）与回调金额校验（按支付单金额/订单应付金额核对），防止错误回调推进支付状态。
+- 21:52 支付排查闭环（后端+前端）：新增 `PATCH /admin/payments/:orderId/review`，管理员可写入 `NORMAL/SUSPICIOUS/FRAUD` 标记与备注（存入 `notifyPayload.adminReview` 并写 `PAYMENT_REVIEW` 订单日志）；管理端支付监控页新增“排查标记+备注+保存”操作。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。

@@ -10,9 +10,11 @@ import { NoticeModule } from '../notice/notice.module';
 import { AdminNoticeController } from './notice.controller';
 import { AdminUserManagementController } from './user-management.controller';
 import { AdminDashboardController } from './dashboard.controller';
+import { PaymentModule } from '../payment/payment.module';
+import { AdminPaymentController } from './payment.controller';
 
 @Module({
-  imports: [OrderModule, WalletModule, NoticeModule],
+  imports: [OrderModule, WalletModule, NoticeModule, PaymentModule],
   controllers: [
     ProductAuditController,
     AdminRefundController,
@@ -21,7 +23,8 @@ import { AdminDashboardController } from './dashboard.controller';
     AdminUserManagementController,
     AdminDashboardController,
     AdminWithdrawController,
-    AdminNoticeController
+    AdminNoticeController,
+    AdminPaymentController
   ]
 })
 export class AdminModule {}

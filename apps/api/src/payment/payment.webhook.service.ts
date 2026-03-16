@@ -3,10 +3,14 @@ import { OrderService } from '../order/order.service';
 import { createHmac } from 'crypto';
 import { PayChannel } from '@prisma/client';
 import { PaymentWebhookDto } from './dto/webhook.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class PaymentWebhookService {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly prisma: PrismaService
+  ) {}
 
   // 占位：根据渠道验签后推进订单为已支付
   async handle(channel: string, payload: PaymentWebhookDto) {
@@ -26,6 +30,8 @@ export class PaymentWebhookService {
     }
 
     const payChannel = channel.toUpperCase() as PayChannel;
+    this.validateChannelConsistency(channel, payload.channel);
+    await this.validateAmount(orderId, amountNum);
 
     await this.orderService.markPaidFromWebhook(
       orderId,
@@ -68,5 +74,35 @@ export class PaymentWebhookService {
     const skew = Number(process.env.PAY_WEBHOOK_MAX_SKEW || 300);
     const now = Math.floor(Date.now() / 1000);
     return Math.abs(now - ts) <= skew;
+  }
+
+  private validateChannelConsistency(routeChannel: string, bodyChannel: PayChannel) {
+    const normalizedRoute = routeChannel.toUpperCase();
+    const normalizedBody = bodyChannel?.toUpperCase?.();
+    if (normalizedBody && normalizedRoute !== normalizedBody) {
+      throw new BadRequestException('渠道参数不一致');
+    }
+  }
+
+  private async validateAmount(orderId: string, amount: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        price: true,
+        fee: true,
+        payment: {
+          select: { amount: true }
+        }
+      }
+    });
+    if (!order) throw new BadRequestException('订单不存在');
+
+    const expected = order.payment
+      ? Number(order.payment.amount)
+      : Number(order.price) + Number(order.fee);
+    if (Math.abs(expected - amount) > 0.01) {
+      throw new BadRequestException(`回调金额不匹配，期望 ${expected.toFixed(2)}`);
+    }
   }
 }

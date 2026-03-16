@@ -23,7 +23,10 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '登录失败');
       localStorage.setItem('idc_token', data.token);
-      setMessage('登录成功，Token 已保存到本地');
+      setMessage('登录成功，正在跳转...');
+      const redirect = new URLSearchParams(window.location.search).get('redirect');
+      const nextPath = redirect && redirect.startsWith('/') ? redirect : '/products';
+      window.location.replace(nextPath);
     } catch (e: any) {
       setMessage(e.message);
     } finally {

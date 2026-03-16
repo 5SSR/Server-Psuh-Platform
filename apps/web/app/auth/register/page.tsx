@@ -23,7 +23,10 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '注册失败');
       localStorage.setItem('idc_token', data.token);
-      setMessage('注册成功，Token 已保存到本地');
+      setMessage('注册成功，正在跳转...');
+      const redirect = new URLSearchParams(window.location.search).get('redirect');
+      const nextPath = redirect && redirect.startsWith('/') ? redirect : '/products';
+      window.location.replace(nextPath);
     } catch (e: any) {
       setMessage(e.message);
     } finally {
