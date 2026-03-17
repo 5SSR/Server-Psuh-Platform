@@ -17,6 +17,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { NoticeModule } from './notice/notice.module';
 import { ContentModule } from './content/content.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { RiskModule } from './risk/risk.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     WalletModule,
     TaskModule,
     PaymentModule,
+    RiskModule,
     NoticeModule,
     ContentModule,
     AdminModule

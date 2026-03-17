@@ -4,7 +4,26 @@ import { Controller, Get } from '@nestjs/common';
 export class AppController {
   @Get('health')
   health() {
-    // 健康检查接口，便于探活与监控
-    return { status: 'ok', ts: Date.now() };
+    return { status: 'ok', ts: Date.now(), uptime: Math.floor(process.uptime()) };
+  }
+
+  @Get('ready')
+  ready() {
+    return { status: 'ready', ts: Date.now() };
+  }
+
+  @Get('metrics')
+  metrics() {
+    const mem = process.memoryUsage();
+    return {
+      ts: Date.now(),
+      uptimeSec: Math.floor(process.uptime()),
+      memory: {
+        rss: mem.rss,
+        heapTotal: mem.heapTotal,
+        heapUsed: mem.heapUsed,
+        external: mem.external
+      }
+    };
   }
 }

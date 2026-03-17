@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { OrderService } from '../order/order.service';
 import { UserInteractionService } from '../user/user-interaction.service';
+import { ReconciliationService } from '../payment/reconciliation.service';
+import { PayChannel } from '@prisma/client';
 
 @Injectable()
 export class TaskService {
@@ -9,7 +11,8 @@ export class TaskService {
 
   constructor(
     private readonly orderService: OrderService,
-    private readonly userInteractionService: UserInteractionService
+    private readonly userInteractionService: UserInteractionService,
+    private readonly reconciliationService: ReconciliationService
   ) {}
 
   // 每 5 分钟关闭超时未支付订单
@@ -47,6 +50,27 @@ export class TaskService {
     const res = await this.userInteractionService.checkPriceAlerts();
     if (res.triggered > 0) {
       this.logger.log(`触发降价提醒 ${res.triggered} 条`);
+    }
+  }
+
+  // 每天凌晨执行第三方支付对账（示例：T+1）
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  async reconcileDaily() {
+    const bizDate = new Date(Date.now() - 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    for (const channel of [PayChannel.ALIPAY, PayChannel.WECHAT]) {
+      try {
+        const result = await this.reconciliationService.run(channel, bizDate);
+        this.logger.log(
+          `[reconcile] ${channel} ${bizDate} diff=${result.diffCount}`
+        );
+      } catch (error: any) {
+        this.logger.error(
+          `[reconcile] ${channel} ${bizDate} failed: ${error?.message || 'unknown'}`
+        );
+      }
     }
   }
 }

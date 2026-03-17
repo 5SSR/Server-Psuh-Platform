@@ -3,10 +3,12 @@ import { WalletService } from '../wallet.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { RiskService } from '../../risk/risk.service';
 
 describe('WalletService', () => {
   let service: WalletService;
   let prisma: any;
+  let riskService: any;
 
   beforeEach(async () => {
     prisma = {
@@ -42,11 +44,15 @@ describe('WalletService', () => {
         return Promise.all(cb);
       }),
     };
+    riskService = {
+      evaluate: jest.fn().mockResolvedValue({ action: 'ALLOW', reason: 'ok' })
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WalletService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RiskService, useValue: riskService }
       ],
     }).compile();
 

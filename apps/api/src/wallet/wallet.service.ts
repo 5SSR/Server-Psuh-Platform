@@ -5,15 +5,19 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { NoticeChannel, Prisma, WalletLedgerType } from '@prisma/client';
+import { NoticeChannel, Prisma, RiskScene, WalletLedgerType } from '@prisma/client';
 import { ApplyWithdrawDto } from './dto/apply-withdraw.dto';
 import { QueryWithdrawDto } from './dto/query-withdraw.dto';
 import { ReviewWithdrawDto } from './dto/review-withdraw.dto';
 import { QuerySettlementDto } from './dto/query-settlement.dto';
+import { RiskService } from '../risk/risk.service';
 
 @Injectable()
 export class WalletService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly riskService: RiskService
+  ) {}
 
   private presentRole(role: string) {
     return role === 'ADMIN' ? 'ADMIN' : 'USER';
@@ -97,6 +101,14 @@ export class WalletService {
     const netAmount = amount.minus(fee);
     if (netAmount.lte(0)) {
       throw new BadRequestException('提现金额过小，扣除手续费后到账金额需大于 0');
+    }
+
+    const risk = await this.riskService.evaluate(RiskScene.WITHDRAW, {
+      userId,
+      amount: Number(amount)
+    });
+    if (risk.action === 'BLOCK') {
+      throw new ForbiddenException('提现申请触发风控拦截');
     }
 
     return this.prisma.$transaction(async (tx) => {

@@ -1,15 +1,17 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { OrderService } from '../order/order.service';
 import { createHmac } from 'crypto';
-import { PayChannel } from '@prisma/client';
+import { PayChannel, RiskScene } from '@prisma/client';
 import { PaymentWebhookDto } from './dto/webhook.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { RiskService } from '../risk/risk.service';
 
 @Injectable()
 export class PaymentWebhookService {
   constructor(
     private readonly orderService: OrderService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly riskService: RiskService
   ) {}
 
   // 占位：根据渠道验签后推进订单为已支付
@@ -32,6 +34,16 @@ export class PaymentWebhookService {
     const payChannel = channel.toUpperCase() as PayChannel;
     this.validateChannelConsistency(channel, payload.channel);
     await this.validateAmount(orderId, amountNum);
+
+    const risk = await this.riskService.evaluate(RiskScene.PAYMENT_CALLBACK, {
+      orderId,
+      amount: amountNum,
+      channel: payChannel,
+      tradeNo: payload.tradeNo
+    });
+    if (risk.action === 'BLOCK') {
+      throw new BadRequestException('风控拦截：支付回调已阻断');
+    }
 
     await this.orderService.markPaidFromWebhook(
       orderId,

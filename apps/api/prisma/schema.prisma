@@ -77,6 +77,8 @@ enum PayStatus {
   UNPAID
   PAID
   REFUNDED
+  FAILED
+  CLOSED
 }
 
 enum PayChannel {
@@ -154,6 +156,42 @@ enum SellerApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum ReconcileTaskStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ReconcileDiffType {
+  MISSING_LOCAL
+  MISSING_REMOTE
+  AMOUNT_MISMATCH
+  STATUS_MISMATCH
+  DUPLICATE_REMOTE
+}
+
+enum ReconcileItemStatus {
+  OPEN
+  RESOLVED
+  IGNORED
+}
+
+enum RiskScene {
+  LOGIN
+  CREATE_ORDER
+  PAYMENT_CALLBACK
+  WITHDRAW
+}
+
+enum RiskAction {
+  ALLOW
+  REVIEW
+  LIMIT
+  ALERT
+  BLOCK
 }
 
 // ========== 用户与认证 ==========
@@ -420,12 +458,126 @@ model Payment {
   orderId       String    @unique
   channel       PayChannel
   tradeNo       String?
+  channelOrderId String?
+  thirdTradeNo  String?
   amount        Decimal   @db.Decimal(16, 2)
+  paidAmount    Decimal?  @db.Decimal(16, 2)
+  currency      String    @default("CNY")
   payStatus     PayStatus @default(UNPAID)
   paidAt        DateTime?
+  notifyAt      DateTime?
+  closeAt       DateTime?
+  failReason    String?
   notifyPayload Json?
+  notifyRaw     Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  events       PaymentEvent[]
+
+  @@index([tradeNo])
+  @@index([thirdTradeNo])
+  @@index([channelOrderId])
+  @@index([payStatus, createdAt])
+}
+
+model PaymentEvent {
+  id        String   @id @default(uuid())
+  payment   Payment  @relation(fields: [paymentId], references: [id])
+  paymentId String
+  eventType String
+  source    String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([paymentId, createdAt])
+  @@index([eventType, createdAt])
+}
+
+model ReconcileTask {
+  id         String              @id @default(uuid())
+  channel    PayChannel
+  bizDate    DateTime
+  status     ReconcileTaskStatus @default(PENDING)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  summary    Json?
+  error      String?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  items ReconcileItem[]
+
+  @@unique([channel, bizDate])
+  @@index([status, createdAt])
+}
+
+model ReconcileItem {
+  id           String              @id @default(uuid())
+  task         ReconcileTask       @relation(fields: [taskId], references: [id])
+  taskId       String
+  orderId      String?
+  tradeNo      String?
+  thirdTradeNo String?
+  diffType     ReconcileDiffType
+  status       ReconcileItemStatus @default(OPEN)
+  localAmount  Decimal?            @db.Decimal(16, 2)
+  remoteAmount Decimal?            @db.Decimal(16, 2)
+  localStatus  String?
+  remoteStatus String?
+  note         String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([taskId, status])
+  @@index([diffType, createdAt])
+}
+
+model RiskRule {
+  id          String     @id @default(uuid())
+  code        String     @unique
+  name        String
+  scene       RiskScene
+  enabled     Boolean    @default(true)
+  priority    Int        @default(100)
+  action      RiskAction @default(ALERT)
+  condition   Json
+  reason      String?
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([scene, enabled, priority])
+}
+
+model RiskHit {
+  id             String     @id @default(uuid())
+  scene          RiskScene
+  action         RiskAction
+  matchedRuleIds Json?
+  decisionReason String?
+  userId         String?
+  ip             String?
+  input          Json?
+  createdAt      DateTime   @default(now())
+
+  @@index([scene, createdAt])
+  @@index([userId, createdAt])
+}
+
+model RiskEntityList {
+  id          String   @id @default(uuid())
+  listType    String   // BLACKLIST / WHITELIST
+  entityType  String   // USER_ID / IP / EMAIL / ACCOUNT
+  entityValue String
+  enabled     Boolean  @default(true)
+  reason      String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([listType, entityType, entityValue])
+  @@index([entityType, entityValue, enabled])
 }
 
 model DeliveryRecord {

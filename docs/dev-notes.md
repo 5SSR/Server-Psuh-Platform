@@ -19,6 +19,12 @@
 - 容器化交付：新增 API/Web Dockerfile、根目录 `docker-compose.yml`（MySQL + Redis + API + Web）以及 `.dockerignore`。
 - 单元测试补齐：新增并通过 `OrderService`、`AuthService`、`WalletService`、`UserInteractionService` 测试。
 - 构建与测试回归：`pnpm --filter @idc/api build`、`pnpm --filter @idc/web build`、`pnpm --filter @idc/api test -- --passWithNoTests` 通过。
+- 支付与对账（阶段一）落地：新增支付对账模型与服务（`ReconcileTask`/`ReconcileItem`、`ReconciliationService`）、支付宝/微信网关抽象、管理员对账接口 `POST /admin/payments/reconcile/run`、`GET /admin/payments/reconcile/tasks`、`GET /admin/payments/reconcile/tasks/:taskId/items`。
+- 风控引擎（MVP）落地：新增 `RiskRule`、`RiskHit`、`RiskEntityList` 数据模型与 `RiskService` 规则执行器（黑名单优先 + 条件表达式匹配 + 命中日志）；支付回调与提现流程已接入风控判定。
+- 任务调度增强：`TaskService` 新增每日 1 点支付对账任务（T+1），自动执行 ALIPAY/WECHAT 对账并记录差异数量。
+- 可观测性增强：新增 `GET /ready`、`GET /metrics` 健康与运行指标接口；请求日志改为结构化 JSON，并注入 `requestId` 便于链路追踪。
+- 数据迁移新增：`apps/api/prisma/migrations/20260318103000_reconcile_risk_payment_ops/migration.sql`（支付字段增强 + 对账/风控新表 + 索引）。
+- 测试扩面：新增 `risk.service.spec.ts` 与 `reconciliation.service.spec.ts`；API 测试总计 `7 suites / 49 tests` 全通过。
 
 ## 2026-03-17
 - 内容运营模块（后端）上线：新增 `ContentModule`，提供公开接口 `GET /content/home|banners|faqs|help|tags`，以及管理员接口 `GET/POST/PATCH/DELETE /admin/content/*`（Banner/FAQ/帮助文档/标签）。
