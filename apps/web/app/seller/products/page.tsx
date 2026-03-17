@@ -56,6 +56,8 @@ export default function SellerProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [form, setForm] = useState(defaultForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(defaultForm);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
   const load = useCallback(async () => {
@@ -178,6 +180,57 @@ export default function SellerProductsPage() {
       await load();
     } catch (e: any) {
       setError(e.message || '操作失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEdit = (product: Product) => {
+    setEditingId(product.id);
+    setEditForm({
+      title: product.title,
+      category: product.category,
+      region: product.region,
+      datacenter: '',
+      lineType: '',
+      salePrice: String(product.salePrice),
+      deliveryType: product.deliveryType,
+      negotiable: false,
+      consignment: false,
+      canChangeEmail: false,
+      canChangeRealname: false,
+      description: ''
+    });
+  };
+
+  const updateProduct = async () => {
+    if (!token || !editingId) return;
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/products/${editingId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: editForm.title,
+          category: editForm.category,
+          region: editForm.region,
+          salePrice: Number(editForm.salePrice),
+          deliveryType: editForm.deliveryType,
+          description: editForm.description || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '更新失败');
+      setMessage('商品已更新');
+      setEditingId(null);
+      await load();
+    } catch (e: any) {
+      setError(e.message || '更新失败');
     } finally {
       setLoading(false);
     }
@@ -310,6 +363,9 @@ export default function SellerProductsPage() {
                   />
                 </div>
                 <div className="actions">
+                  <button onClick={() => startEdit(item)} disabled={loading} className="secondary">
+                    编辑
+                  </button>
                   {item.status !== 'ONLINE' && (
                     <button onClick={() => submitAudit(item.id)} disabled={loading}>
                       提交审核
@@ -326,6 +382,30 @@ export default function SellerProductsPage() {
                     </button>
                   )}
                 </div>
+                {editingId === item.id && (
+                  <div className="form" style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                    <label>标题</label>
+                    <input value={editForm.title} onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))} />
+                    <label>分类</label>
+                    <select value={editForm.category} onChange={(e) => setEditForm((p) => ({ ...p, category: e.target.value }))}>
+                      <option value="DEDICATED">DEDICATED</option>
+                      <option value="VPS">VPS</option>
+                      <option value="CLOUD">CLOUD</option>
+                      <option value="NAT">NAT</option>
+                      <option value="LINE">LINE</option>
+                    </select>
+                    <label>地区</label>
+                    <input value={editForm.region} onChange={(e) => setEditForm((p) => ({ ...p, region: e.target.value }))} />
+                    <label>售价（元）</label>
+                    <input type="number" value={editForm.salePrice} onChange={(e) => setEditForm((p) => ({ ...p, salePrice: e.target.value }))} />
+                    <label>描述</label>
+                    <input value={editForm.description} onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))} />
+                    <div className="actions">
+                      <button onClick={updateProduct} disabled={loading}>保存修改</button>
+                      <button onClick={() => setEditingId(null)} className="secondary">取消</button>
+                    </div>
+                  </div>
+                )}
               </article>
             ))}
           </div>

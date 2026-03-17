@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { OrderService } from '../order/order.service';
+import { UserInteractionService } from '../user/user-interaction.service';
 
 @Injectable()
 export class TaskService {
   private readonly logger = new Logger(TaskService.name);
 
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly userInteractionService: UserInteractionService
+  ) {}
 
   // 每 5 分钟关闭超时未支付订单
   @Cron(CronExpression.EVERY_5_MINUTES)
@@ -34,6 +38,15 @@ export class TaskService {
     const res = await this.orderService.autoReleaseSettlements();
     if (res.released > 0) {
       this.logger.log(`自动放款订单 ${res.released} 条`);
+    }
+  }
+
+  // 每 30 分钟检查降价提醒
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async checkPriceAlerts() {
+    const res = await this.userInteractionService.checkPriceAlerts();
+    if (res.triggered > 0) {
+      this.logger.log(`触发降价提醒 ${res.triggered} 条`);
     }
   }
 }

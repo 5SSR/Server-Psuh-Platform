@@ -9,11 +9,13 @@ export default async function HelpPage() {
   }
 
   return (
-    <main className="page">
-      <section className="hero">
+    <main className="page" style={{ maxWidth: 860 }}>
+      <section style={{ textAlign: 'center', paddingBottom: 32 }}>
         <p className="eyebrow">帮助中心</p>
         <h1>交易规则与常见问题</h1>
-        <p className="sub">这里会展示平台公告、FAQ 与交易流程说明，帮助买卖双方快速完成交易。</p>
+        <p className="sub" style={{ maxWidth: 480, margin: '12px auto 0' }}>
+          平台公告、FAQ 与交易流程说明，帮助买卖双方快速完成交易。
+        </p>
       </section>
 
       <section className="grid">

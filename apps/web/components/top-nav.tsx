@@ -1,33 +1,33 @@
 "use client";
 
-import Link from 'next/link';
+import Link, { type LinkProps } from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
+
+type NavItem = { href: LinkProps<string>['href']; label: string };
 
 type CurrentUser = {
   email: string;
   role: 'USER' | 'ADMIN';
 };
 
-const COMMON_LINKS = [
-  { href: '/products', label: '商品' },
-  { href: '/help', label: '帮助中心' }
-] as const;
-
-const USER_LINKS = [
-  { href: '/seller/dashboard', label: '用户看板' },
+const SELLER_LINKS: NavItem[] = [
+  { href: '/seller/dashboard', label: '卖家看板' },
   { href: '/seller/products', label: '我的商品' },
   { href: '/seller/orders', label: '我的履约' },
   { href: '/seller/settlements', label: '我的结算' },
-  { href: '/orders', label: '订单' },
+];
+
+const BUYER_LINKS: NavItem[] = [
+  { href: '/orders', label: '我的订单' },
   { href: '/wallet', label: '钱包' },
   { href: '/notices', label: '通知' },
-  { href: '/profile/verify', label: '认证中心' }
-] as const;
+  { href: '/profile/verify', label: '认证中心' },
+];
 
-const ADMIN_LINKS = [
+const ADMIN_LINKS: NavItem[] = [
   { href: '/admin/dashboard', label: '运营看板' },
   { href: '/admin/payments', label: '支付监控' },
   { href: '/admin/users', label: '用户管理' },
@@ -38,8 +38,21 @@ const ADMIN_LINKS = [
   { href: '/admin/disputes', label: '纠纷仲裁' },
   { href: '/admin/notices', label: '通知管理' },
   { href: '/admin/content', label: '内容运营' },
-  { href: '/admin/withdrawals', label: '提现审核' }
-] as const;
+  { href: '/admin/withdrawals', label: '提现审核' },
+];
+
+function NavGroup({ label, links }: { label: string; links: NavItem[] }) {
+  return (
+    <div className="nav-group">
+      <button className="nav-group-trigger">{label}</button>
+      <div className="nav-dropdown">
+        {links.map((item) => (
+          <Link key={String(item.href)} href={item.href}>{item.label}</Link>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function TopNav() {
   const router = useRouter();
@@ -88,31 +101,20 @@ export default function TopNav() {
 
   return (
     <nav className="topbar">
-      <div className="logo">IDC 二手交易</div>
+      <Link href="/" className="logo">IDC 交易平台</Link>
       <div className="nav-links">
-        {COMMON_LINKS.map((item) => (
-          <Link key={item.href} href={item.href}>
-            {item.label}
-          </Link>
-        ))}
+        <Link href="/products">商品</Link>
+        <Link href="/help">帮助</Link>
 
         {ready && currentUser ? (
           <>
-            {USER_LINKS.map((item) => (
-              <Link key={item.href} href={item.href}>
-                {item.label}
-              </Link>
-            ))}
-            {currentUser.role === 'ADMIN' &&
-              ADMIN_LINKS.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  {item.label}
-                </Link>
-              ))}
+            <NavGroup label="卖家中心" links={SELLER_LINKS} />
+            <NavGroup label="买家中心" links={BUYER_LINKS} />
+            {currentUser.role === 'ADMIN' && (
+              <NavGroup label="管理后台" links={ADMIN_LINKS} />
+            )}
             <span className="nav-role">{currentUser.role === 'ADMIN' ? '管理员' : '用户'}</span>
-            <button className="nav-btn" onClick={logout}>
-              退出
-            </button>
+            <button className="nav-btn" onClick={logout}>退出</button>
           </>
         ) : (
           <>

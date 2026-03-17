@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   NotFoundException,
+  Patch,
   Post,
   UseGuards
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ApplySellerDto } from './dto/apply-seller.dto';
 import { SubmitKycDto } from './dto/submit-kyc.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { NoticeChannel } from '@prisma/client';
 
 @Controller('user')
@@ -31,9 +33,12 @@ export class UserController {
       select: {
         id: true,
         email: true,
+        nickname: true,
+        avatar: true,
         role: true,
         status: true,
         emailVerifiedAt: true,
+        mfaEnabled: true,
         createdAt: true
       }
     });
@@ -42,6 +47,21 @@ export class UserController {
       ...info,
       role: this.presentRole(info.role)
     };
+  }
+
+  @Patch('profile')
+  async updateProfile(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: UpdateProfileDto
+  ) {
+    await this.prisma.user.update({
+      where: { id: user.userId },
+      data: {
+        ...(dto.nickname !== undefined && { nickname: dto.nickname }),
+        ...(dto.avatar !== undefined && { avatar: dto.avatar })
+      }
+    });
+    return { message: '资料已更新' };
   }
 
   @Get('seller-profile')

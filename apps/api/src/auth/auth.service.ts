@@ -20,7 +20,9 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SecurityLogQueryDto } from './dto/security-log-query.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { createHash } from 'crypto';
+import { generateSecret, generateURI, verifySync } from 'otplib';
 
 interface LoginMeta {
   ip?: string;
@@ -392,5 +394,83 @@ export class AuthService {
       })
     ]);
     return { total, list, page, pageSize };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('用户不存在');
+    const ok = await bcrypt.compare(dto.oldPassword, user.passwordHash);
+    if (!ok) throw new BadRequestException('原密码错误');
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash }
+    });
+    return { message: '密码修改成功' };
+  }
+
+  // ---- MFA (TOTP) ----
+
+  async setupMfa(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('用户不存在');
+    if (user.mfaEnabled) throw new BadRequestException('MFA 已启用');
+
+    const secret = generateSecret();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: secret }
+    });
+
+    const otpauth = generateURI({ strategy: 'totp', issuer: 'IDC-Platform', label: user.email, secret });
+    return { secret, otpauth };
+  }
+
+  async enableMfa(userId: string, token: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.mfaSecret) throw new BadRequestException('请先设置 MFA');
+    if (user.mfaEnabled) throw new BadRequestException('MFA 已启用');
+
+    const result = verifySync({ token, secret: user.mfaSecret });
+    if (!result.valid) throw new BadRequestException('验证码无效');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: true }
+    });
+    return { message: 'MFA 启用成功' };
+  }
+
+  async disableMfa(userId: string, token: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('用户不存在');
+    if (!user.mfaEnabled) throw new BadRequestException('MFA 未启用');
+
+    const result = verifySync({ token, secret: user.mfaSecret! });
+    if (!result.valid) throw new BadRequestException('验证码无效');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: false, mfaSecret: null }
+    });
+    return { message: 'MFA 已关闭' };
+  }
+
+  async verifyMfaLogin(userId: string, token: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('用户不存在');
+    if (!user.mfaEnabled || !user.mfaSecret) {
+      throw new BadRequestException('MFA 未启用');
+    }
+    const result = verifySync({ token, secret: user.mfaSecret });
+    if (!result.valid) throw new UnauthorizedException('MFA 验证码无效');
+    return {
+      token: this.signToken({ sub: user.id, role: user.role }),
+      user: {
+        id: user.id,
+        email: user.email,
+        role: this.presentRole(user.role)
+      }
+    };
   }
 }

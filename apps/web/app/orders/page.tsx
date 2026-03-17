@@ -239,6 +239,28 @@ export default function OrdersPage() {
     }
   };
 
+  const cancelOrder = async (orderId: string) => {
+    if (!token) return;
+    if (!window.confirm('确认取消此订单？')) return;
+    setLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/orders/${orderId}/cancel`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '取消失败');
+      setMessage('订单已取消');
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refund = async (orderId: string) => {
     if (!token) return;
     setLoading(true);
@@ -406,6 +428,11 @@ export default function OrdersPage() {
                 </button>
               )}
               {order.status === 'PENDING_PAYMENT' && (
+                <button onClick={() => cancelOrder(order.id)} disabled={loading} className="secondary">
+                  取消订单
+                </button>
+              )}
+              {order.status === 'PENDING_PAYMENT' && (
                 <button onClick={() => refreshPayStatus(order.id)} disabled={loading} className="secondary">
                   刷新支付状态
                 </button>
@@ -551,12 +578,25 @@ export default function OrdersPage() {
             {timeline[order.id] && timeline[order.id].length > 0 && (
               <div className="card nested">
                 <h3>订单时间线</h3>
-                {timeline[order.id].map((item) => (
-                  <p key={item.id} className="muted">
-                    [{new Date(item.createdAt).toLocaleString('zh-CN')}] {item.action} / {item.actorType}
-                    {item.remark ? ` / ${item.remark}` : ''}
-                  </p>
-                ))}
+                <div style={{ position: 'relative', paddingLeft: 20, marginTop: 12 }}>
+                  <div style={{ position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: 'var(--border)' }} />
+                  {timeline[order.id].map((item) => (
+                    <div key={item.id} style={{ position: 'relative', paddingBottom: 16 }}>
+                      <div style={{
+                        position: 'absolute', left: -17, top: 4,
+                        width: 10, height: 10, borderRadius: '50%',
+                        background: item.actorType === 'SYSTEM' ? 'var(--text-secondary)' : 'var(--accent)'
+                      }} />
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{item.action}</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginLeft: 8 }}>
+                          {item.actorType} · {new Date(item.createdAt).toLocaleString('zh-CN')}
+                        </span>
+                      </div>
+                      {item.remark && <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', margin: '2px 0 0' }}>{item.remark}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
@@ -16,10 +16,15 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { NoticeModule } from './notice/notice.module';
 import { ContentModule } from './content/content.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 60
+    }]),
     PrismaModule,
     ProductModule,
     AuthModule,
@@ -34,7 +39,6 @@ import { ContentModule } from './content/content.module';
   ],
   controllers: [AppController],
   providers: [
-    // 全局异常过滤，统一错误返回格式
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter
@@ -42,6 +46,10 @@ import { ContentModule } from './content/content.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard
     }
   ]
 })

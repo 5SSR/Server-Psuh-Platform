@@ -1,6 +1,7 @@
 import { api } from '../../../lib/api';
 import Link from 'next/link';
 import { PurchaseBox } from '../../../components/purchase-box';
+import { FavoriteButton, ImageGallery } from '../../../components/product-detail-extras';
 
 export default async function ProductDetail({ params }: { params: { id: string } }) {
   const detail = await api.productDetail(params.id);
@@ -15,8 +16,15 @@ export default async function ProductDetail({ params }: { params: { id: string }
           <p className="eyebrow">{detail.region}</p>
           <h1>{detail.title}</h1>
         </div>
-        <div className="price-lg">¥{Number(detail.salePrice).toFixed(2)}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="price-lg">¥{Number(detail.salePrice).toFixed(2)}</div>
+          <FavoriteButton productId={detail.id} />
+        </div>
       </header>
+
+      {detail.images && detail.images.length > 0 && (
+        <ImageGallery images={detail.images} />
+      )}
 
       <div className="detail-grid">
         <section className="card">
@@ -24,6 +32,7 @@ export default async function ProductDetail({ params }: { params: { id: string }
           <p>分类：{detail.category}</p>
           {detail.lineType && <p>线路：{detail.lineType}</p>}
           {detail.expireAt && <p>到期：{new Date(detail.expireAt).toLocaleDateString()}</p>}
+          {detail.description && <p style={{ marginTop: 8, color: 'var(--text-secondary)' }}>{detail.description}</p>}
         </section>
 
         <section className="card">
@@ -39,7 +48,7 @@ export default async function ProductDetail({ params }: { params: { id: string }
         <section className="card">
           <h3>风险标签</h3>
           <div className="tags">
-            {(detail.riskTags ?? ['暂无']).map((t) => (
+            {(detail.riskTags ?? ['暂无']).map((t: string) => (
               <span key={t} className="pill warning">
                 {t}
               </span>

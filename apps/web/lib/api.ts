@@ -25,6 +25,8 @@ export interface Product {
   lineType?: string;
   riskTags?: string[];
   expireAt?: string;
+  description?: string;
+  images?: { id: string; url: string; type: string }[];
   seller?: {
     id: string;
     email: string;

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ProductAuditController } from './product-audit.controller';
 import { AdminRefundController } from './refund.controller';
 import { AdminDisputeController } from './dispute.controller';
@@ -12,6 +13,9 @@ import { AdminUserManagementController } from './user-management.controller';
 import { AdminDashboardController } from './dashboard.controller';
 import { PaymentModule } from '../payment/payment.module';
 import { AdminPaymentController } from './payment.controller';
+import { AdminLogService } from './admin-log.service';
+import { AdminLogController } from './admin-log.controller';
+import { AdminLogInterceptor } from './admin-log.interceptor';
 
 @Module({
   imports: [OrderModule, WalletModule, NoticeModule, PaymentModule],
@@ -24,7 +28,16 @@ import { AdminPaymentController } from './payment.controller';
     AdminDashboardController,
     AdminWithdrawController,
     AdminNoticeController,
-    AdminPaymentController
-  ]
+    AdminPaymentController,
+    AdminLogController
+  ],
+  providers: [
+    AdminLogService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AdminLogInterceptor
+    }
+  ],
+  exports: [AdminLogService]
 })
 export class AdminModule {}

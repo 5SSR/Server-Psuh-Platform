@@ -175,4 +175,50 @@ export class NoticeService {
 
     return { message: '站内广播发送成功', count: users.length };
   }
+
+  // ---- Template CRUD ----
+
+  async listTemplates(query: { page?: number; pageSize?: number }) {
+    const { page = 1, pageSize = 50 } = query;
+    const [total, list] = await this.prisma.$transaction([
+      this.prisma.noticeTemplate.count(),
+      this.prisma.noticeTemplate.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+    return { total, list, page, pageSize };
+  }
+
+  async createTemplate(data: { code: string; name: string; subject: string; body: string; channel?: string }) {
+    return this.prisma.noticeTemplate.create({
+      data: {
+        code: data.code,
+        name: data.name,
+        subject: data.subject,
+        bodyTemplate: data.body,
+        ...(data.channel ? { channel: data.channel as any } : {})
+      }
+    });
+  }
+
+  async updateTemplate(id: string, data: { name?: string; subject?: string; body?: string; channel?: string }) {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.subject !== undefined) updateData.subject = data.subject;
+    if (data.body !== undefined) updateData.bodyTemplate = data.body;
+    if (data.channel !== undefined) updateData.channel = data.channel;
+    return this.prisma.noticeTemplate.update({ where: { id }, data: updateData });
+  }
+
+  async deleteTemplate(id: string) {
+    await this.prisma.noticeTemplate.delete({ where: { id } });
+    return { message: '模板已删除' };
+  }
+
+  /** 渲染模板：将 {{key}} 替换为 vars 对应值 */
+  renderTemplate(template: string, vars: Record<string, string>) {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+  }
 }

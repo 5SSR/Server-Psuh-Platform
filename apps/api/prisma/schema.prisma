@@ -162,10 +162,13 @@ model User {
   id           String      @id @default(uuid())
   email        String      @unique
   passwordHash String
+  nickname     String?
+  avatar       String?
   role         UserRole    @default(BUYER)
   status       UserStatus  @default(ACTIVE)
   emailVerifiedAt DateTime?
   mfaEnabled   Boolean     @default(false)
+  mfaSecret    String?
   lastLoginAt  DateTime?
   lastLoginIp  String?
   createdAt    DateTime    @default(now())
@@ -183,6 +186,9 @@ model User {
   evidences     DisputeEvidence[]
   sellerOrders  Order[]           @relation("SellerOrders")
   loginLogs     UserLoginLog[]
+  favorites     Favorite[]
+  browsingHistory BrowsingHistory[]
+  priceAlerts   PriceAlert[]
 }
 
 model AuthCode {
@@ -343,6 +349,9 @@ model Product {
   images   ProductImage[]
   audits   ProductAudit[]
   orders   Order[]
+  favorites Favorite[]
+  browsingHistory BrowsingHistory[]
+  priceAlerts PriceAlert[]
 
   @@index([sellerId, status])
   @@index([category, status])
@@ -581,4 +590,76 @@ model MarketTag {
   updatedAt DateTime @updatedAt
 
   @@index([type, isActive, position])
+}
+
+// ========== 管理员审计日志 ==========
+
+model AdminLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String
+  resource  String
+  resourceId String?
+  detail    Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([resource, createdAt])
+}
+
+// ========== 通知模板 ==========
+
+model NoticeTemplate {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  channel     NoticeChannel @default(SITE)
+  subject     String?
+  bodyTemplate String  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ========== 收藏 / 浏览历史 / 价格提醒 ==========
+
+model Favorite {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId, createdAt])
+}
+
+model BrowsingHistory {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  viewedAt  DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId, viewedAt])
+  @@index([productId])
+}
+
+model PriceAlert {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  product     Product  @relation(fields: [productId], references: [id])
+  productId   String
+  targetPrice Decimal  @db.Decimal(16, 2)
+  triggered   Boolean  @default(false)
+  triggeredAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([productId, triggered])
 }

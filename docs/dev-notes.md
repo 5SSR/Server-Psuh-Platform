@@ -2,6 +2,24 @@
 
 > 更新频率：每次开发后追加，便于下一次快速接力。
 
+## 2026-03-18
+- 全量需求收尾（P0/P1 延伸项）完成：订单取消与管理员强制完成、用户资料更新与改密、MFA（TOTP）启用/停用/登录校验、收藏/浏览历史/价格提醒、通知模板管理、管理员操作审计日志、任务巡检增强（价格提醒）。
+- 数据层扩展并落库：`User` 新增 `nickname/avatar/mfaSecret`，新增 `AdminLog`、`NoticeTemplate`、`Favorite`、`BrowsingHistory`、`PriceAlert` 模型；补充迁移目录：
+   - `apps/api/prisma/migrations/20260317152945_add_admin_log_favorites_mfa`
+   - `apps/api/prisma/migrations/20260317153623_add_user_profile_fields`
+   - `apps/api/prisma/migrations/20260317160000_add_browsing_history_unique`
+- 后端能力补齐：
+   - 订单：新增买家取消接口与管理员强制完成接口。
+   - 认证：新增改密、MFA 设置/启用/停用/二次校验，统一 TOTP 调用适配当前 `otplib` 版本。
+   - 用户交互：新增收藏、浏览历史、价格提醒服务与控制器。
+   - 通知：新增模板 CRUD、邮件服务、Telegram 服务。
+   - 管理端：新增操作审计服务/拦截器/查询接口，修复审计字段与 Prisma 模型对齐（`resource/resourceId`）。
+   - 基础设施：接入全局限流（`@nestjs/throttler`）。
+- 前端页面与交互补齐：新增 `404`、个人资料页、安全中心页、收藏页、管理员审计日志页、卖家入口重定向；增强商品筛选分页、商品详情图集与收藏、订单时间线与取消、卖家商品编辑。
+- 容器化交付：新增 API/Web Dockerfile、根目录 `docker-compose.yml`（MySQL + Redis + API + Web）以及 `.dockerignore`。
+- 单元测试补齐：新增并通过 `OrderService`、`AuthService`、`WalletService`、`UserInteractionService` 测试。
+- 构建与测试回归：`pnpm --filter @idc/api build`、`pnpm --filter @idc/web build`、`pnpm --filter @idc/api test -- --passWithNoTests` 通过。
+
 ## 2026-03-17
 - 内容运营模块（后端）上线：新增 `ContentModule`，提供公开接口 `GET /content/home|banners|faqs|help|tags`，以及管理员接口 `GET/POST/PATCH/DELETE /admin/content/*`（Banner/FAQ/帮助文档/标签）。
 - Prisma 数据层新增 `Banner`、`Faq`、`HelpArticle`、`MarketTag` 四张表，补充迁移脚本 `apps/api/prisma/migrations/20260317102000_content_ops/migration.sql`，并完成 Prisma Client 重新生成。

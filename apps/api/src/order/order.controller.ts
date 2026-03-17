@@ -78,6 +78,12 @@ export class OrderController {
     return this.orderService.buyerConfirm(id, user.userId, dto);
   }
 
+  @Patch(':id/cancel')
+  @Roles('USER')
+  cancel(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
+    return this.orderService.cancelOrder(id, user.userId);
+  }
+
   @Get(':id/timeline')
   getTimeline(@Param('id') id: string) {
     return this.orderService.orderTimeline(id);

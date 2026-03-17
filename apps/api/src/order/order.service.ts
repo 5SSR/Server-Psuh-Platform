@@ -669,6 +669,72 @@ export class OrderService {
     });
   }
 
+  /** 买家主动取消（仅待支付订单可取消） */
+  async cancelOrder(orderId: string, buyerId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order) throw new NotFoundException('订单不存在');
+      if (order.buyerId !== buyerId) throw new ForbiddenException('无权操作');
+      if (order.status !== OrderStatus.PENDING_PAYMENT) {
+        throw new BadRequestException('当前状态不可取消');
+      }
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.CANCELED }
+      });
+      await tx.orderLog.create({
+        data: {
+          orderId,
+          action: 'USER_CANCEL',
+          actorType: 'USER',
+          actorId: buyerId,
+          remark: '买家主动取消'
+        }
+      });
+      return { message: '订单已取消' };
+    });
+  }
+
+  /** 管理员强制完成（可跳过验机流程） */
+  async forceComplete(orderId: string, adminId: string, remark?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order) throw new NotFoundException('订单不存在');
+      if ([OrderStatus.COMPLETED, OrderStatus.COMPLETED_PENDING_SETTLEMENT, OrderStatus.CANCELED].includes(order.status as any)) {
+        throw new BadRequestException('订单已终态，无法操作');
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.COMPLETED_PENDING_SETTLEMENT }
+      });
+
+      await tx.settlement.upsert({
+        where: { orderId },
+        update: {},
+        create: {
+          orderId,
+          sellerId: order.sellerId,
+          amount: order.price,
+          fee: order.fee,
+          status: SettlementStatus.PENDING
+        }
+      });
+
+      await tx.orderLog.create({
+        data: {
+          orderId,
+          action: 'ADMIN_FORCE_COMPLETE',
+          actorType: 'ADMIN',
+          actorId: adminId,
+          remark: remark || '管理员强制完成'
+        }
+      });
+
+      return { message: '订单已强制完成' };
+    });
+  }
+
   async orderTimeline(orderId: string) {
     return this.prisma.orderLog.findMany({
       where: { orderId },

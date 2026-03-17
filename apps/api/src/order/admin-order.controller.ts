@@ -26,4 +26,13 @@ export class AdminOrderController {
   ) {
     return this.orderService.verify(id, user.userId, dto);
   }
+
+  @Patch(':id/force-complete')
+  forceComplete(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string,
+    @Body() body: { remark?: string }
+  ) {
+    return this.orderService.forceComplete(id, user.userId, body.remark);
+  }
 }

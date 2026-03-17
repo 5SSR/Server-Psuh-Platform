@@ -16,6 +16,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { SecurityLogQueryDto } from './dto/security-log-query.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { VerifyMfaDto } from './dto/verify-mfa.dto';
 import { Request } from 'express';
 
 @Controller('auth')
@@ -78,5 +80,38 @@ export class AuthController {
     @Query() query: SecurityLogQueryDto
   ) {
     return this.authService.getSecurityLogs(user.userId, query);
+  }
+
+  @Post('password/change')
+  @UseGuards(JwtAuthGuard)
+  changePassword(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: ChangePasswordDto
+  ) {
+    return this.authService.changePassword(user.userId, dto);
+  }
+
+  // ---- MFA ----
+  @Post('mfa/setup')
+  @UseGuards(JwtAuthGuard)
+  setupMfa(@CurrentUser() user: { userId: string }) {
+    return this.authService.setupMfa(user.userId);
+  }
+
+  @Post('mfa/enable')
+  @UseGuards(JwtAuthGuard)
+  enableMfa(@CurrentUser() user: { userId: string }, @Body() dto: VerifyMfaDto) {
+    return this.authService.enableMfa(user.userId, dto.token);
+  }
+
+  @Post('mfa/disable')
+  @UseGuards(JwtAuthGuard)
+  disableMfa(@CurrentUser() user: { userId: string }, @Body() dto: VerifyMfaDto) {
+    return this.authService.disableMfa(user.userId, dto.token);
+  }
+
+  @Post('mfa/verify')
+  verifyMfa(@Body() body: { userId: string; token: string }) {
+    return this.authService.verifyMfaLogin(body.userId, body.token);
   }
 }
