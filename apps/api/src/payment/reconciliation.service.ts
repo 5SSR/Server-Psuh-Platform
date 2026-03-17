@@ -156,6 +156,16 @@ export class ReconciliationService {
     return { total, list, page, pageSize };
   }
 
+  async resolveItem(itemId: string, input: { status: ReconcileItemStatus; note?: string }) {
+    return this.prisma.reconcileItem.update({
+      where: { id: itemId },
+      data: {
+        status: input.status,
+        ...(typeof input.note !== 'undefined' ? { note: input.note } : {})
+      }
+    });
+  }
+
   private normalizeDate(input?: string) {
     if (!input) return new Date().toISOString().slice(0, 10);
     return input;

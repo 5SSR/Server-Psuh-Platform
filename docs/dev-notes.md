@@ -25,6 +25,10 @@
 - 可观测性增强：新增 `GET /ready`、`GET /metrics` 健康与运行指标接口；请求日志改为结构化 JSON，并注入 `requestId` 便于链路追踪。
 - 数据迁移新增：`apps/api/prisma/migrations/20260318103000_reconcile_risk_payment_ops/migration.sql`（支付字段增强 + 对账/风控新表 + 索引）。
 - 测试扩面：新增 `risk.service.spec.ts` 与 `reconciliation.service.spec.ts`；API 测试总计 `7 suites / 49 tests` 全通过。
+- 管理端风控 API 补齐：新增 `AdminRiskController`，支持规则列表/新增/更新（启停）、命中记录查询、黑白名单列表与维护（upsert/update）。
+- 管理端对账闭环增强：新增差异项状态更新接口 `PATCH /admin/payments/reconcile/items/:itemId`（OPEN -> RESOLVED/IGNORED）。
+- 前端管理页新增：`/admin/reconcile`（手动执行对账、查看任务、处理差异）与 `/admin/risk`（新增阈值规则、名单维护、查看命中）；顶部导航补充“支付对账”“风控策略”入口。
+- 回归验证：`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test -- --passWithNoTests`、`pnpm --filter @idc/web build` 通过（web 构建阶段本地 API 未启动时会出现 `fetch failed` 预渲染提示，不影响产物生成）。
 
 ## 2026-03-17
 - 内容运营模块（后端）上线：新增 `ContentModule`，提供公开接口 `GET /content/home|banners|faqs|help|tags`，以及管理员接口 `GET/POST/PATCH/DELETE /admin/content/*`（Banner/FAQ/帮助文档/标签）。

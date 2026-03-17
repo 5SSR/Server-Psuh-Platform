@@ -17,6 +17,7 @@ import { AdminLogService } from './admin-log.service';
 import { AdminLogController } from './admin-log.controller';
 import { AdminLogInterceptor } from './admin-log.interceptor';
 import { AdminPaymentReconcileController } from './payment-reconcile.controller';
+import { AdminRiskController } from './risk.controller';
 
 @Module({
   imports: [OrderModule, WalletModule, NoticeModule, PaymentModule],
@@ -31,6 +32,7 @@ import { AdminPaymentReconcileController } from './payment-reconcile.controller'
     AdminNoticeController,
     AdminPaymentController,
     AdminPaymentReconcileController,
+    AdminRiskController,
     AdminLogController
   ],
   providers: [

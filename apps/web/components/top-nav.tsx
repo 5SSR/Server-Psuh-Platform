@@ -30,6 +30,8 @@ const BUYER_LINKS: NavItem[] = [
 const ADMIN_LINKS: NavItem[] = [
   { href: '/admin/dashboard', label: '运营看板' },
   { href: '/admin/payments', label: '支付监控' },
+  { href: '/admin/reconcile', label: '支付对账' },
+  { href: '/admin/risk', label: '风控策略' },
   { href: '/admin/users', label: '用户管理' },
   { href: '/admin/products', label: '商品审核' },
   { href: '/admin/orders', label: '订单核验' },
