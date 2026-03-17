@@ -11,7 +11,10 @@ type CurrentUser = {
   role: 'USER' | 'ADMIN';
 };
 
-const COMMON_LINKS = [{ href: '/products', label: '商品' }] as const;
+const COMMON_LINKS = [
+  { href: '/products', label: '商品' },
+  { href: '/help', label: '帮助中心' }
+] as const;
 
 const USER_LINKS = [
   { href: '/seller/dashboard', label: '用户看板' },
@@ -34,6 +37,7 @@ const ADMIN_LINKS = [
   { href: '/admin/refunds', label: '退款审核' },
   { href: '/admin/disputes', label: '纠纷仲裁' },
   { href: '/admin/notices', label: '通知管理' },
+  { href: '/admin/content', label: '内容运营' },
   { href: '/admin/withdrawals', label: '提现审核' }
 ] as const;
 

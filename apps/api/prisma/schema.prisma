@@ -524,3 +524,61 @@ model Notice {
   sentAt      DateTime?
   createdAt   DateTime      @default(now())
 }
+
+// ========== 内容运营 ==========
+
+model Banner {
+  id        String   @id @default(uuid())
+  title     String
+  subtitle  String?
+  imageUrl  String?
+  linkUrl   String?
+  badge     String?
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
+}
+
+model Faq {
+  id        String   @id @default(uuid())
+  category  String?  @default("通用")
+  question  String
+  answer    String
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
+}
+
+model HelpArticle {
+  id        String   @id @default(uuid())
+  category  String?  @default("帮助中心")
+  title     String
+  content   String
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
+}
+
+model MarketTag {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   @default("GENERAL")
+  color     String?
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type, isActive, position])
+}

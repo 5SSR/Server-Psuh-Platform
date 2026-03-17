@@ -46,8 +46,46 @@ export interface ProductListResponse {
   pageSize: number;
 }
 
+export interface ContentBanner {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  badge?: string | null;
+  linkUrl?: string | null;
+}
+
+export interface ContentFaq {
+  id: string;
+  category?: string | null;
+  question: string;
+  answer: string;
+}
+
+export interface HelpArticle {
+  id: string;
+  category?: string | null;
+  title: string;
+  content: string;
+}
+
+export interface MarketTag {
+  id: string;
+  name: string;
+  type: string;
+  color?: string | null;
+}
+
+export interface HomeContent {
+  banners: ContentBanner[];
+  faqs: ContentFaq[];
+  helps: HelpArticle[];
+  tags: MarketTag[];
+}
+
 export const api = {
   products: (query = '') =>
     request<ProductListResponse>(`/products${query ? `?${query}` : ''}`),
-  productDetail: (id: string) => request<Product>(`/products/${id}`)
+  productDetail: (id: string) => request<Product>(`/products/${id}`),
+  homeContent: () => request<HomeContent>('/content/home'),
+  helpArticles: () => request<HelpArticle[]>('/content/help')
 };

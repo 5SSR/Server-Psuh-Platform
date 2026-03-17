@@ -2,6 +2,13 @@
 
 > 更新频率：每次开发后追加，便于下一次快速接力。
 
+## 2026-03-17
+- 内容运营模块（后端）上线：新增 `ContentModule`，提供公开接口 `GET /content/home|banners|faqs|help|tags`，以及管理员接口 `GET/POST/PATCH/DELETE /admin/content/*`（Banner/FAQ/帮助文档/标签）。
+- Prisma 数据层新增 `Banner`、`Faq`、`HelpArticle`、`MarketTag` 四张表，补充迁移脚本 `apps/api/prisma/migrations/20260317102000_content_ops/migration.sql`，并完成 Prisma Client 重新生成。
+- 前端首页改造：`apps/web/app/page.tsx` 从占位信息切换为内容接口驱动，支持 Banner 区、热门标签区、FAQ 区，并连接商品浏览与发布入口。
+- 前端新增帮助中心页 `apps/web/app/help/page.tsx`，后台新增内容运营页 `apps/web/app/admin/content/page.tsx`，用于配置 Banner/FAQ/帮助文档。
+- 导航补充“帮助中心”“内容运营”入口，`pnpm --filter @idc/api build` 与 `pnpm --filter @idc/web build` 通过（前端构建时 API 未启动会出现 `fetch failed` 预渲染提示，不影响产物生成）。
+
 ## 2026-03-14
 - 引入 Prisma 数据模型（`apps/api/prisma/schema.prisma`），覆盖用户/钱包/商品/订单/支付/交付/验机/结算/退款/纠纷/通知核心实体与枚举。
 - 为 API 应用添加 Prisma 支撑：`PrismaModule`、`PrismaService`；`AppModule` 引入 `ConfigModule` 与 `PrismaModule`；Prisma Client 生成路径基于 API 层。

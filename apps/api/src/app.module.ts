@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { NoticeModule } from './notice/notice.module';
+import { ContentModule } from './content/content.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NoticeModule } from './notice/notice.module';
     TaskModule,
     PaymentModule,
     NoticeModule,
+    ContentModule,
     AdminModule
   ],
   controllers: [AppController],
