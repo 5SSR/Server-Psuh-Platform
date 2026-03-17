@@ -3,18 +3,27 @@
 一个由 **ChatGPT 辅助规划与推动开发** 的 IDC 二手服务器担保交易平台，聚焦 VPS、独立服务器、NAT、云服务器、线路机等二手场景，围绕发布、审核、下单、支付托管、交付验机、纠纷处理与结算放款，打造可运营的交易闭环。
 
 - 一期目标：跑通“担保交易闭环”，优先安全性与可控性。
-- 技术栈（推荐）：NestJS + Next.js + PostgreSQL + Redis + pnpm + turbo。
+- 技术栈（当前实现）：NestJS + Next.js + MySQL(Prisma) + Redis + pnpm + turbo。
 - 设计文档：`docs/architecture.md`（ERD、状态机、接口草案）。
 - 数据层：Prisma schema 位置 `apps/api/prisma/schema.prisma`，API Swagger 访问 `/api/docs`。
 
 ## 快速开始（开发）
 1. 安装 pnpm：`npm i -g pnpm@9`
 2. 安装依赖：`pnpm install`
-3. 启动所有应用：`pnpm dev`（turbo 并行 web + api）
-4. 复制 `.env.example` 为 `.env`，填入数据库、Redis、支付/邮件等配置。
-5. 首次建库：`pnpm --filter @idc/api prisma:generate`，然后 `pnpm --filter @idc/api prisma:migrate -- --name init`
-6. Swagger 调试：`http://localhost:4000/api/docs`，鉴权使用 Bearer Token（`/auth/login` 获取）
-7. 可选：导入示例数据 `pnpm --filter @idc/api prisma:seed`（需先配置 `DATABASE_URL`）
+3. 复制 `.env.example` 为 `.env`，填入数据库、Redis、支付/邮件等配置。
+4. 首次建库：`pnpm --filter @idc/api prisma:generate`，然后 `pnpm --filter @idc/api prisma:migrate -- --name init`
+5. 可选：导入示例数据 `pnpm --filter @idc/api prisma:seed`（需先配置 `DATABASE_URL`）
+6. 启动所有应用：`pnpm dev`（turbo 并行 web + api）
+7. Swagger 调试：`http://localhost:4000/api/docs`，鉴权使用 Bearer Token（`/auth/login` 获取）
+
+## 快速开始（Docker）
+1. 确保本机已安装 Docker / Docker Compose
+2. 在仓库根目录执行：`docker compose up -d --build`
+3. 首次初始化数据库（如需要）：进入 API 容器执行 Prisma migrate/seed
+4. 访问：
+	- Web：`http://localhost:3000`
+	- API：`http://localhost:4000/api/v1`
+	- Swagger：`http://localhost:4000/api/docs`
 
 ## 仓库结构
 - apps/api：后端 API（NestJS）
@@ -26,9 +35,11 @@
 ## 环境变量（关键）
 - `DATABASE_URL` / `REDIS_URL`
 - JWT：`JWT_SECRET`、`JWT_EXPIRES`
+- 认证验证码：`AUTH_CODE_SECRET`、`AUTH_CODE_TTL_MINUTES`
 - 订单超时：`ORDER_AUTO_CONFIRM_HOURS`、`ORDER_UNPAID_CANCEL_MINUTES`
 - 提现参数：`WITHDRAW_MIN_AMOUNT`、`WITHDRAW_FEE_RATE`、`WITHDRAW_MIN_FEE`
 - 支付回调验签：`PAY_WEBHOOK_SECRET_ALIPAY`、`PAY_WEBHOOK_SECRET_WECHAT`、`PAY_WEBHOOK_SECRET_MANUAL`
+- 邮件与 Telegram（可选）：`SMTP_*`、`TELEGRAM_BOT_TOKEN`
 
 ---
 
@@ -134,19 +145,24 @@ Server-Psuh-Platform/
 
 ---
 
-## 8. 当前进度（2026-03-14）
-已完成从“脚手架”到“可本地演示交易闭环”的开发，核心模块如下：
+## 8. 当前进度（2026-03-18）
+已完成从“脚手架”到“可本地演示 + 可管理运营”的交易闭环，核心模块如下：
 
 - 认证与账号安全：注册/登录、邮箱验证码、找回/重置密码、登录日志与异地登录提醒。
+- 账号安全增强：修改密码、MFA（TOTP）启用/停用/登录二次校验、全局限流。
 - 用户中心：`/user/me`、实名认证（KYC）提审与管理员审核流转。
+- 用户交互能力：收藏、浏览历史、价格提醒。
 - 商品中心：商品发布/编辑/提交审核/上下架、商品列表与详情、卖家信用展示。
 - 订单履约：下单、支付、交付、平台核验、买家验机确认、订单时间线。
+- 订单管理增强：买家取消订单、管理员强制完成订单。
 - 支付与托管：余额支付、Webhook 回调验签、托管冻结/解冻/放款、退款与纠纷仲裁。
 - 钱包与提现：余额/冻结/流水、提现申请、管理员审核与打款状态流转。
-- 通知中心：用户通知列表/未读/已读，管理员单发与全站广播。
+- 通知中心：用户通知列表/未读/已读，管理员单发与全站广播，通知模板管理，邮件/Telegram 通道预留。
 - 管理后台：用户管理、商品审核、订单核验、结算放款、退款审核、纠纷仲裁、提现审核、运营看板。
+- 管理审计：管理员操作日志（AdminLog）查询。
 - 定时任务：未支付自动取消、验机超时自动确认、待结算自动放款。
-- 工程能力：Swagger 文档、Jest 基础测试、CI 工作流、开发日志持续记录（`docs/dev-notes.md`）。
+- 定时任务增强：价格提醒巡检任务。
+- 工程能力：Swagger 文档、Jest 单测覆盖（Order/Auth/Wallet/UserInteraction）、CI 工作流、Docker 化部署、开发日志持续记录（`docs/dev-notes.md`）。
 
 ### 本地访问地址
 - 前端：`http://localhost:3000`
@@ -161,7 +177,7 @@ Server-Psuh-Platform/
 > 可通过环境变量 `SEED_DEMO_PASSWORD` 覆盖默认密码。
 
 ### 当前待完善（下一阶段）
-1) 前端页面视觉与交互深化（当前偏管理台风格，需产品化）。
-2) 支付渠道实接（支付宝/微信真实网关）与对账任务。
-3) 风控规则引擎与可配置化策略（限额、黑名单、异常行为联动）。
-4) 自动化测试覆盖提升（订单/支付/钱包/仲裁主链路）。
+1) 支付渠道实接（支付宝/微信真实网关）与对账任务。
+2) 风控规则引擎与可配置化策略（限额、黑名单、异常行为联动）。
+3) 自动化测试继续扩面（支付回调、通知模板、管理员审计、前端关键页面）。
+4) 生产化部署细节（监控告警、备份恢复、灰度发布）。
