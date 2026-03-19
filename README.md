@@ -181,3 +181,12 @@ Server-Psuh-Platform/
 2) 风控规则引擎与可配置化策略（限额、黑名单、异常行为联动）。
 3) 自动化测试继续扩面（支付回调、通知模板、管理员审计、前端关键页面）。
 4) 生产化部署细节（监控告警、备份恢复、灰度发布）。
+
+<img width="1892" height="926" alt="image" src="https://github.com/user-attachments/assets/f2133c04-4eb4-42bc-bd37-713196510f02" />
+<img width="1890" height="910" alt="image" src="https://github.com/user-attachments/assets/c6eff1c8-6812-41d8-8e42-cb7d12449fc4" />
+<img width="1896" height="922" alt="image" src="https://github.com/user-attachments/assets/b308e322-0dfc-499a-a118-108fd982d6ef" />
+<img width="1899" height="935" alt="image" src="https://github.com/user-attachments/assets/8875030d-8199-45c2-a716-c87fd103aff3" />
+<img width="1885" height="961" alt="image" src="https://github.com/user-attachments/assets/bbc0836c-f79e-4d33-8f50-1d6837dd4c39" />
+<img width="1888" height="950" alt="image" src="https://github.com/user-attachments/assets/0e360afe-5622-482e-a2a4-7829b83371f8" />
+<img width="1902" height="912" alt="image" src="https://github.com/user-attachments/assets/dff5b270-6e68-4dc6-89dc-78b393ce74bd" />
+
