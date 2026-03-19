@@ -145,7 +145,7 @@ export default function AdminContentPage() {
       <p className="muted">用于配置首页 Banner、FAQ 与帮助中心。</p>
       {msg ? <p className="success">{msg}</p> : null}
 
-      <section className="grid" style={{ marginTop: 12 }}>
+      <section className="cards" style={{ marginTop: 12 }}>
         <div className="card">
           <h3>新增 Banner</h3>
           <form className="form" onSubmit={submitBanner}>
@@ -180,7 +180,7 @@ export default function AdminContentPage() {
         </div>
       </section>
 
-      <section className="grid" style={{ marginTop: 16 }}>
+      <section className="cards" style={{ marginTop: 16 }}>
         <div className="card">
           <h3>Banner 列表</h3>
           {banners.length === 0 ? <p className="muted">暂无数据</p> : null}

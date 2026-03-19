@@ -23,6 +23,12 @@ const statusLabel: Record<string, string> = {
   FAILED: '失败'
 };
 
+const statusClass: Record<string, string> = {
+  PENDING: 'status-chip warning',
+  SENT: 'status-chip success',
+  FAILED: 'status-chip danger'
+};
+
 export default function NoticesPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -43,12 +49,9 @@ export default function NoticesPage() {
     setMessage('');
     try {
       const [listRes, countRes] = await Promise.all([
-        fetch(
-          `${API_BASE}/notices?page=1&pageSize=30${status ? `&status=${status}` : ''}`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        ),
+        fetch(`${API_BASE}/notices?page=1&pageSize=50${status ? `&status=${status}` : ''}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
         fetch(`${API_BASE}/notices/unread-count`, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -78,9 +81,7 @@ export default function NoticesPage() {
     try {
       const res = await fetch(`${API_BASE}/notices/${id}/read`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '标记已读失败');
@@ -101,9 +102,7 @@ export default function NoticesPage() {
     try {
       const res = await fetch(`${API_BASE}/notices/read-all`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '全部已读失败');
@@ -117,26 +116,26 @@ export default function NoticesPage() {
   };
 
   return (
-    <main className="page">
+    <main className="page page-shell">
       <header className="section-head">
         <div>
           <p className="eyebrow">消息中心</p>
-          <h1>站内通知</h1>
-          <p className="muted">未读：{unread}</p>
+          <h1>平台通知</h1>
+          <p className="muted">未读消息：{unread}，覆盖订单、支付、审核、风控与系统公告。</p>
         </div>
-        <button onClick={load} className="secondary" disabled={loading}>
+        <button onClick={load} className="btn secondary" disabled={loading}>
           {loading ? '刷新中...' : '刷新'}
         </button>
       </header>
 
-      <div className="actions">
+      <div className="toolbar">
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">全部状态</option>
           <option value="PENDING">未读</option>
           <option value="SENT">已读</option>
           <option value="FAILED">失败</option>
         </select>
-        <button onClick={readAll} className="secondary" disabled={loading || unread === 0}>
+        <button onClick={readAll} className="btn secondary" disabled={loading || unread === 0}>
           全部标记已读
         </button>
       </div>
@@ -145,26 +144,37 @@ export default function NoticesPage() {
       {error && <p className="error">{error}</p>}
 
       {notices.length === 0 ? (
-        <p className="muted">暂无通知</p>
+        <div className="empty-state">暂无通知</div>
       ) : (
         <div className="cards">
           {notices.map((item) => (
-            <article className="card" key={item.id}>
+            <article className="card stack-12" key={item.id}>
               <div className="card-header">
-                <div>
-                  <h3>{item.payload?.title || item.type}</h3>
-                  <p className="muted">类型：{item.type}</p>
+                <div className="stack-8">
+                  <h3 style={{ fontSize: 16 }}>{item.payload?.title || item.type}</h3>
+                  <p className="muted">通知类型：{item.type}</p>
                 </div>
-                <span className="pill">{statusLabel[item.status] || item.status}</span>
+                <span className={statusClass[item.status] || 'status-chip'}>
+                  {statusLabel[item.status] || item.status}
+                </span>
               </div>
+
               <p className="muted">{item.payload?.content || '无详情内容'}</p>
-              <p className="muted">
-                创建时间：{new Date(item.createdAt).toLocaleString('zh-CN')}
-                {item.sentAt ? ` · 已读时间：${new Date(item.sentAt).toLocaleString('zh-CN')}` : ''}
-              </p>
+
+              <div className="spec-grid">
+                <div className="spec-item">
+                  <p className="label">创建时间</p>
+                  <p className="value">{new Date(item.createdAt).toLocaleString('zh-CN')}</p>
+                </div>
+                <div className="spec-item">
+                  <p className="label">已读时间</p>
+                  <p className="value">{item.sentAt ? new Date(item.sentAt).toLocaleString('zh-CN') : '未读'}</p>
+                </div>
+              </div>
+
               {item.status === 'PENDING' && (
                 <div className="actions">
-                  <button onClick={() => readOne(item.id)} disabled={loading}>
+                  <button onClick={() => readOne(item.id)} className="btn primary" disabled={loading}>
                     标记已读
                   </button>
                 </div>

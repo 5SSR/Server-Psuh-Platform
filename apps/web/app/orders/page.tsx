@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
@@ -74,6 +74,18 @@ const statusLabel: Record<string, string> = {
   CANCELED: '已取消'
 };
 
+const statusClass: Record<string, string> = {
+  PENDING_PAYMENT: 'status-chip warning',
+  PAID_WAITING_DELIVERY: 'status-chip info',
+  VERIFYING: 'status-chip info',
+  BUYER_CHECKING: 'status-chip info',
+  COMPLETED_PENDING_SETTLEMENT: 'status-chip',
+  COMPLETED: 'status-chip success',
+  REFUNDING: 'status-chip warning',
+  DISPUTING: 'status-chip danger',
+  CANCELED: 'status-chip'
+};
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -89,6 +101,21 @@ export default function OrdersPage() {
   const [payChannelByOrder, setPayChannelByOrder] = useState<Record<string, Channel>>({});
   const [paymentIntentMap, setPaymentIntentMap] = useState<Record<string, PaymentIntent>>({});
   const [paymentStatusMap, setPaymentStatusMap] = useState<Record<string, PaymentStatusInfo>>({});
+
+  const stats = useMemo(() => {
+    return orders.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        if (item.status === 'PENDING_PAYMENT') acc.pendingPayment += 1;
+        if (item.status === 'PAID_WAITING_DELIVERY') acc.waitingDelivery += 1;
+        if (item.status === 'VERIFYING' || item.status === 'BUYER_CHECKING') acc.verifying += 1;
+        if (item.status === 'COMPLETED' || item.status === 'COMPLETED_PENDING_SETTLEMENT') acc.completed += 1;
+        if (item.status === 'REFUNDING' || item.status === 'DISPUTING') acc.risk += 1;
+        return acc;
+      },
+      { total: 0, pendingPayment: 0, waitingDelivery: 0, verifying: 0, completed: 0, risk: 0 }
+    );
+  }, [orders]);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -390,21 +417,55 @@ export default function OrdersPage() {
   };
 
   return (
-    <main className="page">
+    <main className="page page-shell">
       <header className="section-head">
         <div>
           <p className="eyebrow">订单中心</p>
           <h1>我的担保订单</h1>
+          <p className="muted">流程状态：下单支付 → 卖家交付 → 平台核验 → 买家确认 → 结算完成</p>
         </div>
-        <button onClick={load} className="secondary" disabled={loading}>
+        <button onClick={load} className="btn secondary" disabled={loading}>
           {loading ? '刷新中...' : '刷新列表'}
         </button>
       </header>
 
+      <section className="metric-grid">
+        <article className="metric-card">
+          <p className="metric-label">订单总数</p>
+          <p className="metric-value">{stats.total}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">待支付</p>
+          <p className="metric-value">{stats.pendingPayment}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">待交付 / 核验</p>
+          <p className="metric-value">{stats.waitingDelivery + stats.verifying}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">已完成</p>
+          <p className="metric-value">{stats.completed}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">退款 / 纠纷</p>
+          <p className="metric-value">{stats.risk}</p>
+        </article>
+      </section>
+
+      <div className="status-line">
+        <span className="status-chip">待支付</span>
+        <span className="status-chip">待交付</span>
+        <span className="status-chip info">平台核验</span>
+        <span className="status-chip info">买家验机</span>
+        <span className="status-chip success">交易完成</span>
+        <span className="status-chip warning">退款中</span>
+        <span className="status-chip danger">纠纷中</span>
+      </div>
+
       {message && <p className="success">{message}</p>}
       {error && <p className="error">{error}</p>}
 
-      {orders.length === 0 && <p className="muted">暂无订单，先去浏览商品吧。</p>}
+      {orders.length === 0 && <div className="empty-state">暂无订单，先去交易市场浏览商品吧。</div>}
 
       <div className="cards">
         {orders.map((order) => (
@@ -414,7 +475,9 @@ export default function OrdersPage() {
                 <p className="muted">订单号：{order.id}</p>
                 <h3>{order.product?.title ?? '未知商品'}</h3>
               </div>
-              <span className="pill">{statusLabel[order.status] ?? order.status}</span>
+              <span className={statusClass[order.status] || 'status-chip'}>
+                {statusLabel[order.status] ?? order.status}
+              </span>
             </div>
             <p className="card-meta">支付状态：{order.payStatus} · 渠道：{order.payChannel}</p>
             <p className="price">¥{Number(order.price).toFixed(2)}</p>
@@ -428,42 +491,42 @@ export default function OrdersPage() {
                 </button>
               )}
               {order.status === 'PENDING_PAYMENT' && (
-                <button onClick={() => cancelOrder(order.id)} disabled={loading} className="secondary">
+                <button onClick={() => cancelOrder(order.id)} disabled={loading} className="btn secondary">
                   取消订单
                 </button>
               )}
               {order.status === 'PENDING_PAYMENT' && (
-                <button onClick={() => refreshPayStatus(order.id)} disabled={loading} className="secondary">
+                <button onClick={() => refreshPayStatus(order.id)} disabled={loading} className="btn secondary">
                   刷新支付状态
                 </button>
               )}
               {order.status === 'PENDING_PAYMENT' && (
-                <button onClick={() => mockPaySuccess(order.id)} disabled={loading} className="secondary">
+                <button onClick={() => mockPaySuccess(order.id)} disabled={loading} className="btn secondary">
                   模拟支付成功
                 </button>
               )}
               {order.status === 'BUYER_CHECKING' && (
-                <button onClick={() => confirm(order.id)} disabled={loading} className="secondary">
+                <button onClick={() => confirm(order.id)} disabled={loading} className="btn secondary">
                   确认收货
                 </button>
               )}
               {(order.status === 'PAID_WAITING_DELIVERY' || order.status === 'BUYER_CHECKING') && (
-                <button onClick={() => refund(order.id)} disabled={loading} className="secondary">
+                <button onClick={() => refund(order.id)} disabled={loading} className="btn secondary">
                   申请退款
                 </button>
               )}
               {(order.status === 'PAID_WAITING_DELIVERY' ||
                 order.status === 'BUYER_CHECKING' ||
                 order.status === 'REFUNDING') && (
-                <button onClick={() => openDispute(order.id)} disabled={loading} className="secondary">
+                <button onClick={() => openDispute(order.id)} disabled={loading} className="btn secondary">
                   发起纠纷
                 </button>
               )}
-              <button onClick={() => loadTimeline(order.id)} disabled={timelineLoadingId === order.id} className="secondary">
+              <button onClick={() => loadTimeline(order.id)} disabled={timelineLoadingId === order.id} className="btn secondary">
                 {timelineLoadingId === order.id ? '加载中...' : '查看时间线'}
               </button>
               {(order.status === 'DISPUTING' || disputeMap[order.id]) && (
-                <button onClick={() => loadDispute(order.id)} disabled={disputeLoadingId === order.id} className="secondary">
+                <button onClick={() => loadDispute(order.id)} disabled={disputeLoadingId === order.id} className="btn secondary">
                   {disputeLoadingId === order.id ? '加载中...' : '查看纠纷'}
                 </button>
               )}
@@ -576,24 +639,16 @@ export default function OrdersPage() {
             )}
 
             {timeline[order.id] && timeline[order.id].length > 0 && (
-              <div className="card nested">
+              <div className="card nested stack-12">
                 <h3>订单时间线</h3>
-                <div style={{ position: 'relative', paddingLeft: 20, marginTop: 12 }}>
-                  <div style={{ position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: 'var(--border)' }} />
+                <div className="timeline">
                   {timeline[order.id].map((item) => (
-                    <div key={item.id} style={{ position: 'relative', paddingBottom: 16 }}>
-                      <div style={{
-                        position: 'absolute', left: -17, top: 4,
-                        width: 10, height: 10, borderRadius: '50%',
-                        background: item.actorType === 'SYSTEM' ? 'var(--text-secondary)' : 'var(--accent)'
-                      }} />
-                      <div>
-                        <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{item.action}</span>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginLeft: 8 }}>
-                          {item.actorType} · {new Date(item.createdAt).toLocaleString('zh-CN')}
-                        </span>
-                      </div>
-                      {item.remark && <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', margin: '2px 0 0' }}>{item.remark}</p>}
+                    <div key={item.id} className="timeline-item">
+                      <p>{item.action}</p>
+                      <p className="timeline-meta">
+                        {item.actorType} · {new Date(item.createdAt).toLocaleString('zh-CN')}
+                      </p>
+                      {item.remark && <p className="muted">{item.remark}</p>}
                     </div>
                   ))}
                 </div>

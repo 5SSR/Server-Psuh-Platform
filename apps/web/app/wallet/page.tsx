@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -40,6 +40,13 @@ const withdrawStatusLabel: Record<string, string> = {
   rejected: '已驳回'
 };
 
+const withdrawStatusClass: Record<string, string> = {
+  pending: 'status-chip warning',
+  approved: 'status-chip info',
+  paid: 'status-chip success',
+  rejected: 'status-chip danger'
+};
+
 export default function WalletPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -57,6 +64,13 @@ export default function WalletPage() {
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
+  const summary = useMemo(() => {
+    const balance = Number(wallet?.balance || 0);
+    const frozen = Number(wallet?.frozen || 0);
+    const total = balance + frozen;
+    return { balance, frozen, total };
+  }, [wallet?.balance, wallet?.frozen]);
+
   const loadAll = useCallback(async () => {
     if (!token) {
       setError('请先登录后查看钱包');
@@ -71,10 +85,10 @@ export default function WalletPage() {
         fetch(`${API_BASE}/wallet`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        fetch(`${API_BASE}/wallet/ledger?page=1&pageSize=15`, {
+        fetch(`${API_BASE}/wallet/ledger?page=1&pageSize=20`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        fetch(`${API_BASE}/wallet/withdrawals?page=1&pageSize=15`, {
+        fetch(`${API_BASE}/wallet/withdrawals?page=1&pageSize=20`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch(`${API_BASE}/user/me`, {
@@ -123,7 +137,7 @@ export default function WalletPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '充值失败');
-      setMessage('测试充值成功');
+      setMessage('测试充值成功，余额已更新。');
       await loadAll();
     } catch (e: any) {
       setError(e.message || '充值失败');
@@ -162,112 +176,140 @@ export default function WalletPage() {
   };
 
   return (
-    <main className="page">
+    <main className="page page-shell">
       <header className="section-head">
         <div>
           <p className="eyebrow">资金中心</p>
-          <h1>钱包与提现</h1>
+          <h1>钱包 / 结算 / 提现</h1>
+          <p className="muted">身份：{userInfo?.role || '未知'}，资金流水与结算记录可追踪。</p>
         </div>
-        <button onClick={loadAll} className="secondary" disabled={loading}>
+        <button onClick={loadAll} className="btn secondary" disabled={loading}>
           {loading ? '刷新中...' : '刷新'}
         </button>
       </header>
 
+      <section className="metric-grid">
+        <article className="metric-card">
+          <p className="metric-label">可用余额</p>
+          <p className="metric-value">¥{summary.balance.toFixed(2)}</p>
+          <p className="metric-tip">可用于支付或提现</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">冻结金额</p>
+          <p className="metric-value">¥{summary.frozen.toFixed(2)}</p>
+          <p className="metric-tip">托管订单资金与风控冻结</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">账户总资产</p>
+          <p className="metric-value">¥{summary.total.toFixed(2)}</p>
+          <p className="metric-tip">币种：{wallet?.currency || 'CNY'}</p>
+        </article>
+      </section>
+
       {message && <p className="success">{message}</p>}
       {error && <p className="error">{error}</p>}
 
-      <div className="detail-grid">
-        <section className="card">
-          <h3>钱包概览</h3>
-          <p className="muted">可用余额</p>
-          <p className="price-lg">¥{Number(wallet?.balance || 0).toFixed(2)}</p>
-          <p className="muted">冻结金额：¥{Number(wallet?.frozen || 0).toFixed(2)}</p>
-          <p className="muted">币种：{wallet?.currency || 'CNY'}</p>
-        </section>
-
-        <section className="card">
-          <h3>开发充值（测试）</h3>
-          <div className="form">
-            <label>充值金额</label>
-            <input
-              type="number"
-              min="1"
-              value={rechargeAmount}
-              onChange={(e) => setRechargeAmount(e.target.value)}
-            />
-            <button onClick={recharge} disabled={loading}>
-              {loading ? '处理中...' : '测试充值'}
-            </button>
+      <section className="grid">
+        <article className="card stack-12" style={{ gridColumn: 'span 6' }}>
+          <h3>钱包充值（测试）</h3>
+          <div className="form-row">
+            <div className="field half">
+              <label>充值金额</label>
+              <input type="number" min="1" value={rechargeAmount} onChange={(e) => setRechargeAmount(e.target.value)} />
+            </div>
+            <div className="field half">
+              <label>操作</label>
+              <button onClick={recharge} className="btn primary" disabled={loading}>
+                {loading ? '处理中...' : '确认充值'}
+              </button>
+            </div>
           </div>
-        </section>
+        </article>
 
-        <section className="card">
+        <article className="card stack-12" style={{ gridColumn: 'span 6' }}>
           <h3>提现申请</h3>
-          <p className="muted">当前身份：{userInfo?.role || '未知'}</p>
-          <div className="form">
-            <label>提现金额</label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-            />
-            <label>提现渠道</label>
-            <select value={withdrawChannel} onChange={(e) => setWithdrawChannel(e.target.value)}>
-              <option value="ALIPAY">ALIPAY</option>
-              <option value="WECHAT">WECHAT</option>
-              <option value="BANK">BANK</option>
-            </select>
-            <label>收款账号信息</label>
-            <input
-              value={withdrawAccount}
-              onChange={(e) => setWithdrawAccount(e.target.value)}
-              placeholder="例如：支付宝 138xxxxxx"
-            />
-            <button onClick={applyWithdraw} disabled={loading || !withdrawAccount}>
+          <div className="form-row">
+            <div className="field third">
+              <label>提现金额</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+              />
+            </div>
+            <div className="field third">
+              <label>提现渠道</label>
+              <select value={withdrawChannel} onChange={(e) => setWithdrawChannel(e.target.value)}>
+                <option value="ALIPAY">ALIPAY</option>
+                <option value="WECHAT">WECHAT</option>
+                <option value="BANK">BANK</option>
+              </select>
+            </div>
+            <div className="field third">
+              <label>收款账户</label>
+              <input
+                value={withdrawAccount}
+                onChange={(e) => setWithdrawAccount(e.target.value)}
+                placeholder="例如：支付宝 138xxxxxx"
+              />
+            </div>
+          </div>
+          <div className="actions">
+            <button onClick={applyWithdraw} className="btn primary" disabled={loading || !withdrawAccount.trim()}>
               {loading ? '处理中...' : '提交提现申请'}
             </button>
           </div>
-        </section>
-      </div>
+        </article>
+      </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
-        <h3>提现记录</h3>
+      <section className="card stack-16">
+        <div className="section-head">
+          <h3>提现记录</h3>
+          <span className="muted">共 {withdrawals.length} 条</span>
+        </div>
+
         {withdrawals.length === 0 ? (
-          <p className="muted">暂无提现记录</p>
+          <div className="empty-state">暂无提现记录</div>
         ) : (
           <div className="cards">
             {withdrawals.map((item) => (
-              <article className="card nested" key={item.id}>
+              <article className="card nested stack-8" key={item.id}>
                 <div className="card-header">
                   <strong>¥{Number(item.amount).toFixed(2)}</strong>
-                  <span className="pill">{withdrawStatusLabel[item.status] || item.status}</span>
+                  <span className={withdrawStatusClass[item.status] || 'status-chip'}>
+                    {withdrawStatusLabel[item.status] || item.status}
+                  </span>
                 </div>
                 <p className="muted">手续费：¥{Number(item.fee).toFixed(2)}</p>
                 <p className="muted">渠道：{item.channel}</p>
                 <p className="muted">账号：{item.accountInfo}</p>
-                <p className="muted">
-                  申请时间：{new Date(item.createdAt).toLocaleString('zh-CN')}
-                  {item.processedAt ? ` · 处理时间：${new Date(item.processedAt).toLocaleString('zh-CN')}` : ''}
-                </p>
+                <p className="muted">申请时间：{new Date(item.createdAt).toLocaleString('zh-CN')}</p>
+                {item.processedAt && (
+                  <p className="muted">处理时间：{new Date(item.processedAt).toLocaleString('zh-CN')}</p>
+                )}
               </article>
             ))}
           </div>
         )}
       </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
-        <h3>钱包流水</h3>
+      <section className="card stack-16">
+        <div className="section-head">
+          <h3>钱包流水</h3>
+          <span className="muted">共 {ledgerList.length} 条</span>
+        </div>
+
         {ledgerList.length === 0 ? (
-          <p className="muted">暂无流水</p>
+          <div className="empty-state">暂无流水</div>
         ) : (
           <div className="cards">
             {ledgerList.map((item) => (
-              <article className="card nested" key={item.id}>
+              <article className="card nested stack-8" key={item.id}>
                 <div className="card-header">
-                  <strong>{item.type}</strong>
-                  <span className="price">¥{Number(item.amount).toFixed(2)}</span>
+                  <span className="status-chip">{item.type}</span>
+                  <strong className="price">¥{Number(item.amount).toFixed(2)}</strong>
                 </div>
                 <p className="muted">{item.memo || '无备注'}</p>
                 <p className="muted">{new Date(item.createdAt).toLocaleString('zh-CN')}</p>

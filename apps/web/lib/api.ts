@@ -18,14 +18,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface Product {
   id: string;
+  code?: string;
   title: string;
   salePrice: number;
+  renewPrice?: number;
   category: string;
   region: string;
+  status?: string;
+  datacenter?: string;
   lineType?: string;
+  providerName?: string;
+  providerUrl?: string;
+  cpuModel?: string;
+  cpuCores?: number;
+  memoryGb?: number;
+  diskGb?: number;
+  diskType?: string;
+  bandwidthMbps?: number;
+  trafficLimit?: number;
+  ipCount?: number;
+  ddos?: number;
+  deliveryType?: string;
+  negotiable?: boolean;
+  consignment?: boolean;
+  canChangeEmail?: boolean;
+  canChangeRealname?: boolean;
   riskTags?: string[];
   expireAt?: string;
   description?: string;
+  createdAt?: string;
+  updatedAt?: string;
   images?: { id: string; url: string; type: string }[];
   seller?: {
     id: string;
