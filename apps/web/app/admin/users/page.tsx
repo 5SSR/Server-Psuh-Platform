@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ConsoleEmpty,
+  ConsolePageHeader,
+  ConsolePanel,
+  StatusBadge,
+  formatDateTime,
+  formatMoney
+} from '../../../components/admin/console-primitives';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -38,6 +46,11 @@ const statusLabel: Record<string, string> = {
   BANNED: '已封禁'
 };
 
+function statusTone(status: string) {
+  if (status === 'ACTIVE') return 'success' as const;
+  return 'danger' as const;
+}
+
 export default function AdminUsersPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -46,7 +59,9 @@ export default function AdminUsersPage() {
   const [role, setRole] = useState('');
   const [status, setStatus] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [localKeyword, setLocalKeyword] = useState('');
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [selectedId, setSelectedId] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -81,6 +96,30 @@ export default function AdminUsersPage() {
     load();
   }, [load]);
 
+  const filteredList = useMemo(() => {
+    const key = localKeyword.trim().toLowerCase();
+    if (!key) return list;
+    return list.filter((item) => {
+      return (
+        item.email.toLowerCase().includes(key) ||
+        item.id.toLowerCase().includes(key) ||
+        (item.lastLoginIp || '').toLowerCase().includes(key)
+      );
+    });
+  }, [list, localKeyword]);
+
+  useEffect(() => {
+    if (!filteredList.length) {
+      setSelectedId('');
+      return;
+    }
+    if (!selectedId || !filteredList.find((item) => item.id === selectedId)) {
+      setSelectedId(filteredList[0].id);
+    }
+  }, [filteredList, selectedId]);
+
+  const selectedUser = filteredList.find((item) => item.id === selectedId) || null;
+
   const updateStatus = async (userId: string, nextStatus: 'ACTIVE' | 'BANNED') => {
     if (!token) return;
     setLoading(true);
@@ -110,103 +149,181 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <main className="page">
-      <header className="section-head">
-        <div>
-          <p className="eyebrow">管理员中心</p>
-          <h1>用户管理</h1>
-        </div>
-        <button onClick={load} className="secondary" disabled={loading}>
-          {loading ? '刷新中...' : '刷新'}
-        </button>
-      </header>
+    <main className="page page-shell admin-console-page">
+      <ConsolePageHeader
+        eyebrow="管理后台 · 用户管理"
+        title="用户与信誉状态管理"
+        description="查看用户认证、交易资质、钱包余额与登录行为，执行封禁/恢复并记录操作原因。"
+        tags={[
+          { label: '用户信誉', tone: 'info' },
+          { label: '风控管控', tone: 'warning' },
+          { label: `用户 ${list.length} 条`, tone: 'default' }
+        ]}
+        actions={
+          <button onClick={load} className="btn secondary" disabled={loading}>
+            {loading ? '刷新中...' : '刷新列表'}
+          </button>
+        }
+      />
 
-      <div className="detail-grid">
-        <div className="card">
-          <label>角色筛选</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="">全部</option>
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
-          </select>
+      <ConsolePanel title="筛选区" className="stack-12">
+        <div className="console-filter-grid">
+          <div className="field">
+            <label>角色筛选</label>
+            <select value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="">全部</option>
+              <option value="USER">USER</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>状态筛选</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">全部</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="BANNED">BANNED</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>接口关键词（邮箱/ID）</label>
+            <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="触发后端筛选" />
+          </div>
+          <div className="field">
+            <label>本地关键词</label>
+            <input value={localKeyword} onChange={(e) => setLocalKeyword(e.target.value)} placeholder="当前页内快速过滤" />
+          </div>
         </div>
-        <div className="card">
-          <label>状态筛选</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">全部</option>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="BANNED">BANNED</option>
-          </select>
-        </div>
-        <div className="card">
-          <label>关键词（邮箱/ID）</label>
-          <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="输入邮箱或用户ID" />
-        </div>
-      </div>
+      </ConsolePanel>
 
-      {message && <p className="success">{message}</p>}
-      {error && <p className="error">{error}</p>}
+      {message ? <p className="success">{message}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
-      {list.length === 0 ? (
-        <p className="muted">暂无用户记录</p>
-      ) : (
-        <div className="cards">
-          {list.map((item) => (
-            <article className="card" key={item.id}>
-              <div className="card-header">
-                <div>
-                  <h3>{item.email}</h3>
-                  <p className="muted">ID：{item.id}</p>
-                </div>
-                <span className="pill">{statusLabel[item.status] || item.status}</span>
+      <ConsolePanel title="表格区 · 用户列表" className="stack-12">
+        {filteredList.length === 0 ? (
+          <ConsoleEmpty text={loading ? '加载中...' : '暂无用户记录'} />
+        ) : (
+          <div className="console-table-wrap">
+            <table className="console-table">
+              <thead>
+                <tr>
+                  <th>账号 / ID</th>
+                  <th>角色 / 状态</th>
+                  <th>认证与资质</th>
+                  <th>钱包</th>
+                  <th>最近登录</th>
+                  <th>注册时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredList.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="console-row-primary">{item.email}</div>
+                      <p className="console-row-sub">{item.id}</p>
+                    </td>
+                    <td>
+                      <div className="console-inline-tags">
+                        <StatusBadge tone={item.role === 'ADMIN' ? 'warning' : 'info'}>{roleLabel[item.role] || item.role}</StatusBadge>
+                        <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">KYC：{item.kyc?.status || '未提交'}</div>
+                      <p className="console-row-sub">交易资质：{item.sellerApplication?.status || '未申请'}</p>
+                      <p className="console-row-sub">邮箱验证：{item.emailVerifiedAt ? '已验证' : '未验证'}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">余额：{formatMoney(item.wallet?.balance || 0)}</div>
+                      <p className="console-row-sub">冻结：{formatMoney(item.wallet?.frozen || 0)}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{item.lastLoginAt ? formatDateTime(item.lastLoginAt) : '暂无'}</div>
+                      <p className="console-row-sub">IP：{item.lastLoginIp || '-'}</p>
+                    </td>
+                    <td>{formatDateTime(item.createdAt)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(item.id)}
+                        className={`btn ${selectedId === item.id ? 'primary' : 'secondary'} btn-sm`}
+                      >
+                        {selectedId === item.id ? '处理中' : '处理'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ConsolePanel>
+
+      <ConsolePanel
+        title="详情操作区"
+        description="封禁/恢复时建议填写原因，形成可追溯审计记录。"
+        className="console-detail stack-12"
+      >
+        {!selectedUser ? (
+          <ConsoleEmpty text="请选择一条用户记录进行处理" />
+        ) : (
+          <>
+            <div className="console-detail-grid">
+              <div className="spec-item">
+                <p className="label">账号</p>
+                <p className="value">{selectedUser.email}</p>
               </div>
-              <p className="muted">角色：{roleLabel[item.role] || item.role}</p>
-              <p className="muted">邮箱验证：{item.emailVerifiedAt ? '已验证' : '未验证'}</p>
-              <p className="muted">KYC：{item.kyc?.status || '未提交'}</p>
-              <p className="muted">交易资质：{item.sellerApplication?.status || '未申请'}</p>
-              <p className="muted">
-                钱包余额：¥{Number(item.wallet?.balance || 0).toFixed(2)} · 冻结：¥
-                {Number(item.wallet?.frozen || 0).toFixed(2)}
-              </p>
-              <p className="muted">
-                最近登录：{item.lastLoginAt ? new Date(item.lastLoginAt).toLocaleString('zh-CN') : '暂无'}
-                {item.lastLoginIp ? ` / ${item.lastLoginIp}` : ''}
-              </p>
-              <p className="muted">注册时间：{new Date(item.createdAt).toLocaleString('zh-CN')}</p>
-
-              <div className="form">
-                <label>操作备注（可选）</label>
-                <input
-                  value={reasons[item.id] || ''}
-                  onChange={(e) =>
-                    setReasons((prev) => ({
-                      ...prev,
-                      [item.id]: e.target.value
-                    }))
-                  }
-                  placeholder="封禁/恢复原因"
-                />
+              <div className="spec-item">
+                <p className="label">用户 ID</p>
+                <p className="value">{selectedUser.id}</p>
               </div>
-
-              <div className="actions">
-                {item.status === 'ACTIVE' ? (
-                  <button
-                    onClick={() => updateStatus(item.id, 'BANNED')}
-                    disabled={loading || item.role === 'ADMIN'}
-                    className="secondary"
-                  >
-                    封禁账号
-                  </button>
-                ) : (
-                  <button onClick={() => updateStatus(item.id, 'ACTIVE')} disabled={loading}>
-                    恢复账号
-                  </button>
-                )}
+              <div className="spec-item">
+                <p className="label">当前状态</p>
+                <p className="value">{statusLabel[selectedUser.status] || selectedUser.status}</p>
               </div>
-            </article>
-          ))}
-        </div>
-      )}
+              <div className="spec-item">
+                <p className="label">角色</p>
+                <p className="value">{roleLabel[selectedUser.role] || selectedUser.role}</p>
+              </div>
+            </div>
+
+            <div className="console-alert">
+              风控建议：优先核对登录异常、纠纷记录、提现行为后再执行封禁操作，避免误伤正常交易用户。
+            </div>
+
+            <div className="form">
+              <label>操作备注（可选）</label>
+              <textarea
+                value={reasons[selectedUser.id] || ''}
+                onChange={(e) =>
+                  setReasons((prev) => ({
+                    ...prev,
+                    [selectedUser.id]: e.target.value
+                  }))
+                }
+                rows={4}
+                placeholder="例如：异常登录触发高风险规则，临时封禁待复核"
+              />
+            </div>
+
+            <div className="actions">
+              {selectedUser.status === 'ACTIVE' ? (
+                <button
+                  onClick={() => updateStatus(selectedUser.id, 'BANNED')}
+                  disabled={loading || selectedUser.role === 'ADMIN'}
+                  className="btn secondary"
+                >
+                  封禁账号
+                </button>
+              ) : (
+                <button onClick={() => updateStatus(selectedUser.id, 'ACTIVE')} disabled={loading} className="btn primary">
+                  恢复账号
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </ConsolePanel>
     </main>
   );
 }

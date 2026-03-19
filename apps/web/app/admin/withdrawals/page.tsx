@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ConsoleEmpty,
+  ConsolePageHeader,
+  ConsolePanel,
+  StatusBadge,
+  formatDateTime,
+  formatMoney
+} from '../../../components/admin/console-primitives';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -33,13 +41,22 @@ const roleLabel: Record<string, string> = {
   ADMIN: '管理员'
 };
 
+function statusTone(status: string) {
+  if (status === 'paid') return 'success' as const;
+  if (status === 'rejected') return 'danger' as const;
+  if (status === 'approved') return 'info' as const;
+  return 'warning' as const;
+}
+
 export default function AdminWithdrawalsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('pending');
+  const [keyword, setKeyword] = useState('');
   const [items, setItems] = useState<Withdrawal[]>([]);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [selectedId, setSelectedId] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -72,6 +89,31 @@ export default function AdminWithdrawalsPage() {
     load();
   }, [load]);
 
+  const filteredItems = useMemo(() => {
+    const key = keyword.trim().toLowerCase();
+    if (!key) return items;
+    return items.filter((item) => {
+      return (
+        item.id.toLowerCase().includes(key) ||
+        item.wallet?.user?.id.toLowerCase().includes(key) ||
+        item.wallet?.user?.email.toLowerCase().includes(key) ||
+        item.channel.toLowerCase().includes(key)
+      );
+    });
+  }, [items, keyword]);
+
+  useEffect(() => {
+    if (!filteredItems.length) {
+      setSelectedId('');
+      return;
+    }
+    if (!selectedId || !filteredItems.find((item) => item.id === selectedId)) {
+      setSelectedId(filteredItems[0].id);
+    }
+  }, [filteredItems, selectedId]);
+
+  const selectedItem = filteredItems.find((item) => item.id === selectedId) || null;
+
   const decide = async (id: string, action: 'APPROVED' | 'REJECTED' | 'PAID') => {
     if (!token) return;
     setLoading(true);
@@ -101,94 +143,188 @@ export default function AdminWithdrawalsPage() {
   };
 
   return (
-    <main className="page">
-      <header className="section-head">
-        <div>
-          <p className="eyebrow">管理员中心</p>
-          <h1>提现审核</h1>
+    <main className="page page-shell admin-console-page">
+      <ConsolePageHeader
+        eyebrow="管理后台 · 提现审核"
+        title="提现审核与打款管理"
+        description="核对提现申请与账户信息，按流程执行通过、驳回或打款完成，保障结算资金安全。"
+        tags={[
+          { label: '结算资金', tone: 'info' },
+          { label: '提现风控', tone: 'warning' },
+          { label: `记录 ${items.length} 条`, tone: 'default' }
+        ]}
+        actions={
+          <button onClick={load} className="btn secondary" disabled={loading}>
+            {loading ? '刷新中...' : '刷新列表'}
+          </button>
+        }
+      />
+
+      <ConsolePanel title="筛选区" className="stack-12">
+        <div className="console-filter-grid">
+          <div className="field">
+            <label>提现状态</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="pending">待审核</option>
+              <option value="approved">待打款</option>
+              <option value="paid">已打款</option>
+              <option value="rejected">已驳回</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>关键词</label>
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="提现单号 / 用户ID / 邮箱 / 渠道"
+            />
+          </div>
+          <div className="field">
+            <label>处理策略</label>
+            <input value="审核通过后再打款" disabled />
+          </div>
+          <div className="field">
+            <label>安全要求</label>
+            <input value="备注留痕 + 状态闭环" disabled />
+          </div>
         </div>
-        <button onClick={load} className="secondary" disabled={loading}>
-          {loading ? '刷新中...' : '刷新'}
-        </button>
-      </header>
+      </ConsolePanel>
 
-      <div className="actions">
-        <select value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="pending">待审核</option>
-          <option value="approved">待打款</option>
-          <option value="paid">已打款</option>
-          <option value="rejected">已驳回</option>
-        </select>
-      </div>
+      {message ? <p className="success">{message}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
-      {message && <p className="success">{message}</p>}
-      {error && <p className="error">{error}</p>}
+      <ConsolePanel title="表格区 · 提现申请" className="stack-12">
+        {filteredItems.length === 0 ? (
+          <ConsoleEmpty text={loading ? '加载中...' : '暂无提现记录'} />
+        ) : (
+          <div className="console-table-wrap">
+            <table className="console-table">
+              <thead>
+                <tr>
+                  <th>提现单号</th>
+                  <th>用户</th>
+                  <th>金额 / 手续费</th>
+                  <th>净打款</th>
+                  <th>渠道</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="console-row-primary">{item.id}</div>
+                      <p className="console-row-sub">{formatDateTime(item.createdAt)}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{item.wallet?.user?.email || '-'}</div>
+                      <p className="console-row-sub">{roleLabel[item.wallet?.user?.role] || item.wallet?.user?.role}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{formatMoney(item.amount)}</div>
+                      <p className="console-row-sub">手续费：{formatMoney(item.fee)}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{formatMoney(Number(item.amount) - Number(item.fee))}</div>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{item.channel}</div>
+                    </td>
+                    <td>
+                      <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(item.id)}
+                        className={`btn ${selectedId === item.id ? 'primary' : 'secondary'} btn-sm`}
+                      >
+                        {selectedId === item.id ? '处理中' : '处理'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ConsolePanel>
 
-      {items.length === 0 ? (
-        <p className="muted">暂无记录</p>
-      ) : (
-        <div className="cards">
-          {items.map((item) => (
-            <article className="card" key={item.id}>
-              <div className="card-header">
-                <div>
-                  <h3>{item.wallet?.user?.email || '未知用户'}</h3>
-                  <p className="muted">{roleLabel[item.wallet?.user?.role] || item.wallet?.user?.role || '-'}</p>
-                </div>
-                <span className="pill">{statusLabel[item.status] || item.status}</span>
+      <ConsolePanel
+        title="详情操作区"
+        description="核验收款信息后执行流程动作，所有审批备注均建议填写以便财务审计。"
+        className="console-detail stack-12"
+      >
+        {!selectedItem ? (
+          <ConsoleEmpty text="请选择一条提现申请进行处理" />
+        ) : (
+          <>
+            <div className="console-detail-grid">
+              <div className="spec-item">
+                <p className="label">提现单号</p>
+                <p className="value">{selectedItem.id}</p>
               </div>
-              <p className="muted">提现金额：¥{Number(item.amount).toFixed(2)}</p>
-              <p className="muted">手续费：¥{Number(item.fee).toFixed(2)}</p>
-              <p className="muted">渠道：{item.channel}</p>
-              <p className="muted">账号：{item.accountInfo}</p>
-              <p className="muted">申请时间：{new Date(item.createdAt).toLocaleString('zh-CN')}</p>
-              <div className="form">
-                <label>处理备注（可选）</label>
-                <input
-                  value={remarks[item.id] || ''}
-                  onChange={(e) =>
-                    setRemarks((prev) => ({
-                      ...prev,
-                      [item.id]: e.target.value
-                    }))
-                  }
-                  placeholder="填写处理备注"
-                />
+              <div className="spec-item">
+                <p className="label">申请用户</p>
+                <p className="value">{selectedItem.wallet?.user?.email || '-'}</p>
               </div>
-              <div className="actions">
-                {item.status === 'pending' && (
-                  <>
-                    <button onClick={() => decide(item.id, 'APPROVED')} disabled={loading}>
-                      通过
-                    </button>
-                    <button
-                      onClick={() => decide(item.id, 'REJECTED')}
-                      disabled={loading}
-                      className="secondary"
-                    >
-                      驳回
-                    </button>
-                  </>
-                )}
-                {item.status === 'approved' && (
-                  <>
-                    <button onClick={() => decide(item.id, 'PAID')} disabled={loading}>
-                      标记打款完成
-                    </button>
-                    <button
-                      onClick={() => decide(item.id, 'REJECTED')}
-                      disabled={loading}
-                      className="secondary"
-                    >
-                      驳回并退回
-                    </button>
-                  </>
-                )}
+              <div className="spec-item">
+                <p className="label">净打款金额</p>
+                <p className="value">{formatMoney(Number(selectedItem.amount) - Number(selectedItem.fee))}</p>
               </div>
-            </article>
-          ))}
-        </div>
-      )}
+              <div className="spec-item">
+                <p className="label">当前状态</p>
+                <p className="value">{statusLabel[selectedItem.status] || selectedItem.status}</p>
+              </div>
+            </div>
+
+            <div className="console-alert">
+              审核建议：确认账户信息准确、提现申请与冻结资金匹配后再进入打款流程。
+            </div>
+
+            <p className="muted">收款账户：{selectedItem.accountInfo}</p>
+
+            <div className="form">
+              <label>处理备注（可选）</label>
+              <textarea
+                value={remarks[selectedItem.id] || ''}
+                onChange={(e) =>
+                  setRemarks((prev) => ({
+                    ...prev,
+                    [selectedItem.id]: e.target.value
+                  }))
+                }
+                rows={4}
+                placeholder="例如：银行信息核验通过，已安排财务打款"
+              />
+            </div>
+
+            <div className="actions">
+              {selectedItem.status === 'pending' && (
+                <>
+                  <button className="btn primary" onClick={() => decide(selectedItem.id, 'APPROVED')} disabled={loading}>
+                    审核通过
+                  </button>
+                  <button className="btn secondary" onClick={() => decide(selectedItem.id, 'REJECTED')} disabled={loading}>
+                    驳回申请
+                  </button>
+                </>
+              )}
+              {selectedItem.status === 'approved' && (
+                <>
+                  <button className="btn primary" onClick={() => decide(selectedItem.id, 'PAID')} disabled={loading}>
+                    标记打款完成
+                  </button>
+                  <button className="btn secondary" onClick={() => decide(selectedItem.id, 'REJECTED')} disabled={loading}>
+                    驳回并退回
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </ConsolePanel>
     </main>
   );
 }

@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ConsoleEmpty,
+  ConsolePageHeader,
+  ConsolePanel,
+  StatusBadge,
+  formatDateTime
+} from '../../../components/admin/console-primitives';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -38,13 +45,22 @@ type DecisionForm = {
   resolution: string;
 };
 
+function statusTone(status: string) {
+  if (status === 'RESOLVED') return 'success' as const;
+  if (status === 'REJECTED') return 'danger' as const;
+  if (status === 'PROCESSING') return 'warning' as const;
+  return 'info' as const;
+}
+
 export default function AdminDisputesPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('OPEN');
+  const [keyword, setKeyword] = useState('');
   const [items, setItems] = useState<DisputeRecord[]>([]);
   const [forms, setForms] = useState<Record<string, DecisionForm>>({});
+  const [selectedId, setSelectedId] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -76,6 +92,31 @@ export default function AdminDisputesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const filteredItems = useMemo(() => {
+    const key = keyword.trim().toLowerCase();
+    if (!key) return items;
+    return items.filter((item) => {
+      return (
+        item.orderId.toLowerCase().includes(key) ||
+        item.initiator.toLowerCase().includes(key) ||
+        (item.result || '').toLowerCase().includes(key) ||
+        (item.resolution || '').toLowerCase().includes(key)
+      );
+    });
+  }, [items, keyword]);
+
+  useEffect(() => {
+    if (!filteredItems.length) {
+      setSelectedId('');
+      return;
+    }
+    if (!selectedId || !filteredItems.find((item) => item.id === selectedId)) {
+      setSelectedId(filteredItems[0].id);
+    }
+  }, [filteredItems, selectedId]);
+
+  const selectedItem = filteredItems.find((item) => item.id === selectedId) || null;
 
   const getForm = (orderId: string): DecisionForm => {
     return (
@@ -134,115 +175,245 @@ export default function AdminDisputesPage() {
   };
 
   return (
-    <main className="page">
-      <header className="section-head">
-        <div>
-          <p className="eyebrow">管理员中心</p>
-          <h1>纠纷仲裁</h1>
+    <main className="page page-shell admin-console-page">
+      <ConsolePageHeader
+        eyebrow="管理后台 · 纠纷仲裁"
+        title="纠纷处理与裁决"
+        description="集中处理担保交易中的争议订单，基于证据与核验记录执行标准化裁决。"
+        tags={[
+          { label: '争议仲裁', tone: 'warning' },
+          { label: '证据留痕', tone: 'info' },
+          { label: `记录 ${items.length} 条`, tone: 'default' }
+        ]}
+        actions={
+          <button className="btn secondary" onClick={load} disabled={loading}>
+            {loading ? '刷新中...' : '刷新列表'}
+          </button>
+        }
+      />
+
+      <ConsolePanel title="筛选区" className="stack-12">
+        <div className="console-filter-grid">
+          <div className="field">
+            <label>纠纷状态</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="OPEN">待处理</option>
+              <option value="PROCESSING">处理中</option>
+              <option value="RESOLVED">已解决</option>
+              <option value="REJECTED">已驳回</option>
+              <option value="">全部</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>关键词</label>
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="订单号 / 发起方 / 结论"
+            />
+          </div>
+          <div className="field">
+            <label>裁决动作</label>
+            <input value="REFUND / RELEASE" disabled />
+          </div>
+          <div className="field">
+            <label>处理原则</label>
+            <input value="证据 + 交付记录 + 核验记录" disabled />
+          </div>
         </div>
-        <button className="secondary" onClick={load} disabled={loading}>
-          {loading ? '刷新中...' : '刷新'}
-        </button>
-      </header>
+      </ConsolePanel>
 
-      <div className="actions">
-        <select value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="OPEN">待处理</option>
-          <option value="PROCESSING">处理中</option>
-          <option value="RESOLVED">已解决</option>
-          <option value="REJECTED">已驳回</option>
-          <option value="">全部</option>
-        </select>
-      </div>
+      {message ? <p className="success">{message}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
-      {message && <p className="success">{message}</p>}
-      {error && <p className="error">{error}</p>}
+      <ConsolePanel title="表格区 · 纠纷工单" className="stack-12">
+        {filteredItems.length === 0 ? (
+          <ConsoleEmpty text={loading ? '加载中...' : '暂无纠纷记录'} />
+        ) : (
+          <div className="console-table-wrap">
+            <table className="console-table">
+              <thead>
+                <tr>
+                  <th>工单 / 订单</th>
+                  <th>发起方</th>
+                  <th>状态</th>
+                  <th>当前结论</th>
+                  <th>证据数</th>
+                  <th>创建时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="console-row-primary">{item.id}</div>
+                      <p className="console-row-sub">订单：{item.orderId}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{item.initiator}</div>
+                    </td>
+                    <td>
+                      <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{item.result || '-'}</div>
+                      <p className="console-row-sub">{item.resolution || '暂无处理说明'}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{item.evidences?.length || 0}</div>
+                    </td>
+                    <td>{formatDateTime(item.createdAt)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`btn ${selectedId === item.id ? 'primary' : 'secondary'} btn-sm`}
+                        onClick={() => setSelectedId(item.id)}
+                      >
+                        {selectedId === item.id ? '处理中' : '处理'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ConsolePanel>
 
-      {items.length === 0 ? (
-        <p className="muted">暂无纠纷记录</p>
-      ) : (
-        <div className="cards">
-          {items.map((item) => {
-            const form = getForm(item.orderId);
-            const canDecide = item.status === 'OPEN' || item.status === 'PROCESSING';
-            return (
-              <article className="card" key={item.id}>
-                <div className="card-header">
-                  <div>
-                    <h3>订单 {item.orderId}</h3>
-                    <p className="muted">发起方：{item.initiator}</p>
-                  </div>
-                  <span className="pill">{statusLabel[item.status] || item.status}</span>
-                </div>
+      <ConsolePanel
+        title="详情操作区"
+        description="先审查证据，再给出裁决状态、执行动作与结论，结果将影响退款或放款走向。"
+        className="console-detail stack-12"
+      >
+        {!selectedItem ? (
+          <ConsoleEmpty text="请选择一条纠纷工单进行处理" />
+        ) : (
+          <>
+            <div className="console-detail-grid">
+              <div className="spec-item">
+                <p className="label">纠纷工单</p>
+                <p className="value">{selectedItem.id}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">关联订单</p>
+                <p className="value">{selectedItem.orderId}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">当前状态</p>
+                <p className="value">{statusLabel[selectedItem.status] || selectedItem.status}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">最近更新时间</p>
+                <p className="value">{formatDateTime(selectedItem.updatedAt)}</p>
+              </div>
+            </div>
 
-                {item.result && <p className="muted">当前结论：{item.result}</p>}
-                {item.resolution && <p className="muted">处理说明：{item.resolution}</p>}
-                <p className="muted">创建时间：{new Date(item.createdAt).toLocaleString('zh-CN')}</p>
+            <div className="console-alert">
+              仲裁建议：优先核验双方证据时间线与内容一致性，再决定退款买家或放款卖家。
+            </div>
 
-                <div className="card nested">
-                  <h3>证据列表</h3>
-                  {!item.evidences || item.evidences.length === 0 ? (
-                    <p className="muted">暂无证据</p>
-                  ) : (
-                    <div className="cards">
-                      {item.evidences.map((ev) => (
-                        <article className="card nested" key={ev.id}>
-                          <p className="muted">用户：{ev.userId}</p>
-                          <p className="muted">链接：{ev.url}</p>
-                          <p className="muted">备注：{ev.note || '无'}</p>
-                        </article>
+            <div className="stack-12">
+              <h3>证据列表</h3>
+              {!selectedItem.evidences || selectedItem.evidences.length === 0 ? (
+                <p className="muted">暂无证据</p>
+              ) : (
+                <div className="console-table-wrap">
+                  <table className="console-table">
+                    <thead>
+                      <tr>
+                        <th>证据 ID</th>
+                        <th>提交用户</th>
+                        <th>备注</th>
+                        <th>提交时间</th>
+                        <th>链接</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedItem.evidences.map((ev) => (
+                        <tr key={ev.id}>
+                          <td>{ev.id}</td>
+                          <td>{ev.userId}</td>
+                          <td>{ev.note || '-'}</td>
+                          <td>{formatDateTime(ev.createdAt)}</td>
+                          <td>
+                            <a href={ev.url} target="_blank" rel="noreferrer">
+                              查看证据
+                            </a>
+                          </td>
+                        </tr>
                       ))}
-                    </div>
-                  )}
+                    </tbody>
+                  </table>
                 </div>
+              )}
+            </div>
 
-                {canDecide && (
-                  <div className="form">
+            {selectedItem.status === 'OPEN' || selectedItem.status === 'PROCESSING' ? (
+              <div className="form stack-12">
+                <div className="console-filter-grid">
+                  <div className="field">
                     <label>裁决状态</label>
                     <select
-                      value={form.status}
+                      value={getForm(selectedItem.orderId).status}
                       onChange={(e) =>
-                        updateForm(item.orderId, { status: e.target.value as 'RESOLVED' | 'REJECTED' })
+                        updateForm(selectedItem.orderId, {
+                          status: e.target.value as 'RESOLVED' | 'REJECTED'
+                        })
                       }
                     >
                       <option value="RESOLVED">RESOLVED</option>
                       <option value="REJECTED">REJECTED</option>
                     </select>
-
+                  </div>
+                  <div className="field">
                     <label>执行动作</label>
                     <select
-                      value={form.action}
+                      value={getForm(selectedItem.orderId).action}
                       onChange={(e) =>
-                        updateForm(item.orderId, { action: e.target.value as 'REFUND' | 'RELEASE' })
+                        updateForm(selectedItem.orderId, {
+                          action: e.target.value as 'REFUND' | 'RELEASE'
+                        })
                       }
                     >
                       <option value="REFUND">REFUND（退款买家）</option>
                       <option value="RELEASE">RELEASE（放款卖家）</option>
                     </select>
-
-                    <label>裁决结论（必填）</label>
-                    <input
-                      value={form.result}
-                      onChange={(e) => updateForm(item.orderId, { result: e.target.value })}
-                      placeholder="例如：卖家交付信息不一致，支持退款"
-                    />
-
-                    <label>处理说明（可选）</label>
-                    <input
-                      value={form.resolution}
-                      onChange={(e) => updateForm(item.orderId, { resolution: e.target.value })}
-                    />
-
-                    <button onClick={() => decide(item.orderId)} disabled={loading}>
-                      提交裁决
-                    </button>
                   </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      )}
+                </div>
+
+                <div className="form">
+                  <label>裁决结论（必填）</label>
+                  <textarea
+                    value={getForm(selectedItem.orderId).result}
+                    onChange={(e) => updateForm(selectedItem.orderId, { result: e.target.value })}
+                    rows={4}
+                    placeholder="例如：卖家交付信息与商品描述不一致，支持退款"
+                  />
+                </div>
+
+                <div className="form">
+                  <label>处理说明（可选）</label>
+                  <textarea
+                    value={getForm(selectedItem.orderId).resolution}
+                    onChange={(e) => updateForm(selectedItem.orderId, { resolution: e.target.value })}
+                    rows={3}
+                    placeholder="补充处理细节"
+                  />
+                </div>
+
+                <div className="actions">
+                  <button className="btn primary" onClick={() => decide(selectedItem.orderId)} disabled={loading}>
+                    提交裁决
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="muted">该纠纷已完成处理，无需重复裁决。</p>
+            )}
+          </>
+        )}
+      </ConsolePanel>
     </main>
   );
 }

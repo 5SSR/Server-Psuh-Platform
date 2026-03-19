@@ -648,6 +648,183 @@ textarea:focus {
   background: var(--color-info-soft);
 }
 
+.admin-shell {
+  min-height: calc(100vh - 64px);
+}
+
+.admin-console-nav {
+  position: sticky;
+  top: 64px;
+  z-index: 70;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(244, 247, 253, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.admin-console-nav-inner {
+  width: min(1320px, calc(100vw - 48px));
+  margin: 0 auto;
+}
+
+.admin-console-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+}
+
+.admin-console-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font: 500 13px/1 var(--font-sans);
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.admin-console-tab:hover {
+  border-color: var(--color-border);
+  background: #fff;
+  color: var(--color-text);
+}
+
+.admin-console-tab.active {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.admin-console-page {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.console-header-meta {
+  max-width: 900px;
+  display: grid;
+  gap: 8px;
+}
+
+.console-header-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.console-header-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.console-panel {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.console-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.console-filter-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.console-filter-grid .field {
+  grid-column: span 3;
+}
+
+.console-filter-toolbar {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.console-table-wrap {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  overflow: auto;
+}
+
+.console-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.console-table th,
+.console-table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.console-table th {
+  background: #f8fafc;
+  color: var(--color-text-secondary);
+  font: 600 12px/1.4 var(--font-sans);
+}
+
+.console-table tr:last-child td {
+  border-bottom: none;
+}
+
+.console-row-primary {
+  color: var(--color-text);
+  font: 600 14px/1.4 var(--font-sans);
+}
+
+.console-row-sub {
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font: var(--caption);
+}
+
+.console-inline-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.console-detail {
+  border-style: dashed;
+  background: var(--color-surface-muted);
+}
+
+.console-detail-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.console-alert {
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 10px 12px;
+  font: 500 13px/1.5 var(--font-sans);
+}
+
+.console-empty {
+  padding: 40px 16px;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -1005,7 +1182,15 @@ pre.code {
     width: calc(100vw - 32px);
   }
 
+  .admin-console-nav-inner {
+    width: calc(100vw - 32px);
+  }
+
   .filter-grid .field {
+    grid-column: span 4;
+  }
+
+  .console-filter-grid .field {
     grid-column: span 4;
   }
 }
@@ -1088,6 +1273,10 @@ pre.code {
     grid-column: span 6;
   }
 
+  .console-filter-grid .field {
+    grid-column: span 6;
+  }
+
   .field.half,
   .field.third {
     grid-column: span 12;
@@ -1113,6 +1302,15 @@ pre.code {
   .auth-panel {
     order: 1;
     padding: var(--space-3);
+  }
+
+  .admin-console-nav {
+    top: 64px;
+  }
+
+  .admin-console-tab {
+    height: 34px;
+    padding: 0 10px;
   }
 }
 
@@ -1144,6 +1342,36 @@ pre.code {
 
   .filter-grid .field {
     grid-column: span 12;
+  }
+
+  .console-filter-grid .field {
+    grid-column: span 12;
+  }
+
+  .console-filter-toolbar,
+  .console-header-actions {
+    width: 100%;
+  }
+
+  .console-filter-toolbar > .btn,
+  .console-filter-toolbar > button,
+  .console-header-actions > .btn,
+  .console-header-actions > button {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .console-table {
+    min-width: 740px;
+  }
+
+  .console-table th,
+  .console-table td {
+    padding: 10px;
+  }
+
+  .console-detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .actions {

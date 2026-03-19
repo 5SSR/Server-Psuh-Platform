@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ConsoleEmpty,
+  ConsolePageHeader,
+  ConsolePanel,
+  StatusBadge,
+  formatDateTime,
+  formatMoney
+} from '../../../components/admin/console-primitives';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -35,13 +43,21 @@ const statusLabel: Record<string, string> = {
   REJECTED: '已拒绝'
 };
 
+function statusTone(status: string) {
+  if (status === 'RELEASED') return 'success' as const;
+  if (status === 'REJECTED') return 'danger' as const;
+  return 'warning' as const;
+}
+
 export default function AdminSettlementsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('PENDING');
+  const [keyword, setKeyword] = useState('');
   const [list, setList] = useState<SettlementItem[]>([]);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [selectedId, setSelectedId] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -74,6 +90,32 @@ export default function AdminSettlementsPage() {
     load();
   }, [load]);
 
+  const filteredList = useMemo(() => {
+    const key = keyword.trim().toLowerCase();
+    if (!key) return list;
+    return list.filter((item) => {
+      return (
+        item.orderId.toLowerCase().includes(key) ||
+        item.sellerId.toLowerCase().includes(key) ||
+        (item.order?.product?.title || '').toLowerCase().includes(key) ||
+        (item.order?.buyer?.email || '').toLowerCase().includes(key) ||
+        (item.order?.seller?.email || '').toLowerCase().includes(key)
+      );
+    });
+  }, [list, keyword]);
+
+  useEffect(() => {
+    if (!filteredList.length) {
+      setSelectedId('');
+      return;
+    }
+    if (!selectedId || !filteredList.find((item) => item.id === selectedId)) {
+      setSelectedId(filteredList[0].id);
+    }
+  }, [filteredList, selectedId]);
+
+  const selectedItem = filteredList.find((item) => item.id === selectedId) || null;
+
   const release = async (orderId: string) => {
     if (!token) return;
     setLoading(true);
@@ -102,78 +144,175 @@ export default function AdminSettlementsPage() {
   };
 
   return (
-    <main className="page">
-      <header className="section-head">
-        <div>
-          <p className="eyebrow">管理员财务</p>
-          <h1>结算放款</h1>
+    <main className="page page-shell admin-console-page">
+      <ConsolePageHeader
+        eyebrow="管理后台 · 结算放款"
+        title="结算与放款管理"
+        description="审核完成后执行卖家放款，统一沉淀结算备注，确保资金流转可追溯。"
+        tags={[
+          { label: '担保结算', tone: 'info' },
+          { label: '放款审核', tone: 'warning' },
+          { label: `记录 ${list.length} 条`, tone: 'default' }
+        ]}
+        actions={
+          <button className="btn secondary" onClick={load} disabled={loading}>
+            {loading ? '刷新中...' : '刷新列表'}
+          </button>
+        }
+      />
+
+      <ConsolePanel title="筛选区" className="stack-12">
+        <div className="console-filter-grid">
+          <div className="field">
+            <label>结算状态</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="PENDING">待放款</option>
+              <option value="RELEASED">已放款</option>
+              <option value="REJECTED">已拒绝</option>
+              <option value="">全部</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>关键词</label>
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="订单号 / 卖家 / 商品 / 邮箱"
+            />
+          </div>
+          <div className="field">
+            <label>流程模式</label>
+            <input value="确认后放款" disabled />
+          </div>
+          <div className="field">
+            <label>风控关注</label>
+            <input value="异常订单禁止放款" disabled />
+          </div>
         </div>
-        <button className="secondary" onClick={load} disabled={loading}>
-          {loading ? '刷新中...' : '刷新'}
-        </button>
-      </header>
+      </ConsolePanel>
 
-      <div className="actions">
-        <select value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="PENDING">待放款</option>
-          <option value="RELEASED">已放款</option>
-          <option value="REJECTED">已拒绝</option>
-          <option value="">全部</option>
-        </select>
-      </div>
+      {message ? <p className="success">{message}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
-      {message && <p className="success">{message}</p>}
-      {error && <p className="error">{error}</p>}
+      <ConsolePanel title="表格区 · 结算记录" className="stack-12">
+        {filteredList.length === 0 ? (
+          <ConsoleEmpty text={loading ? '加载中...' : '暂无结算记录'} />
+        ) : (
+          <div className="console-table-wrap">
+            <table className="console-table">
+              <thead>
+                <tr>
+                  <th>结算单 / 订单</th>
+                  <th>买家 / 卖家</th>
+                  <th>金额 / 手续费</th>
+                  <th>净放款</th>
+                  <th>状态</th>
+                  <th>时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredList.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="console-row-primary">{item.id}</div>
+                      <p className="console-row-sub">订单：{item.orderId}</p>
+                      <p className="console-row-sub">{item.order?.product?.title || '未知商品'}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">买家：{item.order?.buyer?.email || '-'}</div>
+                      <p className="console-row-sub">卖家：{item.order?.seller?.email || item.sellerId}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{formatMoney(item.amount)}</div>
+                      <p className="console-row-sub">手续费：{formatMoney(item.fee)}</p>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">{formatMoney(Number(item.amount) - Number(item.fee))}</div>
+                    </td>
+                    <td>
+                      <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
+                    </td>
+                    <td>
+                      <div className="console-row-primary">创建：{formatDateTime(item.createdAt)}</div>
+                      <p className="console-row-sub">放款：{item.releasedAt ? formatDateTime(item.releasedAt) : '未放款'}</p>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(item.id)}
+                        className={`btn ${selectedId === item.id ? 'primary' : 'secondary'} btn-sm`}
+                      >
+                        {selectedId === item.id ? '处理中' : '处理'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ConsolePanel>
 
-      {list.length === 0 ? (
-        <p className="muted">暂无结算记录</p>
-      ) : (
-        <div className="cards">
-          {list.map((item) => (
-            <article className="card" key={item.id}>
-              <div className="card-header">
-                <div>
-                  <h3>{item.order?.product?.title || '未知商品'}</h3>
-                  <p className="muted">订单号：{item.orderId}</p>
-                </div>
-                <span className="pill">{statusLabel[item.status] || item.status}</span>
+      <ConsolePanel
+        title="详情操作区"
+        description="确认订单已满足结算条件后执行放款，处理备注建议保留财务核验说明。"
+        className="console-detail stack-12"
+      >
+        {!selectedItem ? (
+          <ConsoleEmpty text="请选择一条结算记录进行处理" />
+        ) : (
+          <>
+            <div className="console-detail-grid">
+              <div className="spec-item">
+                <p className="label">结算单号</p>
+                <p className="value">{selectedItem.id}</p>
               </div>
-              <p className="muted">买家：{item.order?.buyer?.email || '-'}</p>
-              <p className="muted">卖家：{item.order?.seller?.email || item.sellerId}</p>
-              <p className="muted">结算金额：¥{Number(item.amount).toFixed(2)}</p>
-              <p className="muted">手续费：¥{Number(item.fee).toFixed(2)}</p>
-              <p className="muted">净放款：¥{(Number(item.amount) - Number(item.fee)).toFixed(2)}</p>
-              <p className="muted">创建时间：{new Date(item.createdAt).toLocaleString('zh-CN')}</p>
-              {item.releasedAt && (
-                <p className="muted">放款时间：{new Date(item.releasedAt).toLocaleString('zh-CN')}</p>
-              )}
+              <div className="spec-item">
+                <p className="label">关联订单</p>
+                <p className="value">{selectedItem.orderId}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">净放款金额</p>
+                <p className="value">{formatMoney(Number(selectedItem.amount) - Number(selectedItem.fee))}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">状态</p>
+                <p className="value">{statusLabel[selectedItem.status] || selectedItem.status}</p>
+              </div>
+            </div>
 
-              {item.status === 'PENDING' && (
-                <>
-                  <div className="form">
-                    <label>放款备注（可选）</label>
-                    <input
-                      value={remarks[item.orderId] || ''}
-                      onChange={(e) =>
-                        setRemarks((prev) => ({
-                          ...prev,
-                          [item.orderId]: e.target.value
-                        }))
-                      }
-                      placeholder="例如：人工核对通过"
-                    />
-                  </div>
-                  <div className="actions">
-                    <button onClick={() => release(item.orderId)} disabled={loading}>
-                      执行放款
-                    </button>
-                  </div>
-                </>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
+            <div className="console-alert">
+              放款建议：仅对已完成核验、无纠纷或退款风险的订单执行放款，避免错误结算。
+            </div>
+
+            <div className="form">
+              <label>放款备注（可选）</label>
+              <textarea
+                value={remarks[selectedItem.orderId] || ''}
+                onChange={(e) =>
+                  setRemarks((prev) => ({
+                    ...prev,
+                    [selectedItem.orderId]: e.target.value
+                  }))
+                }
+                rows={4}
+                placeholder="例如：人工核对通过，结算放款执行成功"
+              />
+            </div>
+
+            {selectedItem.status === 'PENDING' ? (
+              <div className="actions">
+                <button className="btn primary" onClick={() => release(selectedItem.orderId)} disabled={loading}>
+                  执行放款
+                </button>
+              </div>
+            ) : (
+              <p className="muted">该结算记录当前不可放款。</p>
+            )}
+          </>
+        )}
+      </ConsolePanel>
     </main>
   );
 }
