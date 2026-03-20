@@ -1,4 +1,5 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { NoticeService } from '../notice/notice.service';
@@ -79,8 +80,20 @@ export class UserInteractionService {
 
   // ---- Price Alerts ----
   async createAlert(userId: string, productId: string, targetPrice: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true }
+    });
+    if (!product) {
+      throw new NotFoundException('商品不存在');
+    }
+
     return this.prisma.priceAlert.create({
-      data: { userId, productId, targetPrice }
+      data: {
+        userId,
+        productId,
+        targetPrice: new Prisma.Decimal(targetPrice)
+      }
     });
   }
 

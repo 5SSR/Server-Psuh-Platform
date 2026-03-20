@@ -49,6 +49,7 @@ describe('AuthService', () => {
 
     jwt = {
       sign: jest.fn(() => 'mock-jwt-token'),
+      verify: jest.fn(() => ({ sub: 'u1', purpose: 'MFA_LOGIN' })),
     };
     noticeService = {
       createSystemNotice: jest.fn().mockResolvedValue({}),
@@ -121,6 +122,7 @@ describe('AuthService', () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'u1', email: 'ok@test.com', status: 'ACTIVE', passwordHash: 'hashed',
         role: 'BUYER', lastLoginIp: null, emailVerifiedAt: new Date(), createdAt: new Date(),
+        mfaEnabled: false, mfaSecret: null,
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       prisma.user.update.mockResolvedValue({});
@@ -129,6 +131,29 @@ describe('AuthService', () => {
       const result = await service.login({ email: 'ok@test.com', password: 'correct' });
       expect(result).toHaveProperty('token', 'mock-jwt-token');
       expect(result.user.role).toBe('USER');
+    });
+
+    it('should require mfa when mfa is enabled', async () => {
+      (jwt.sign as jest.Mock).mockImplementation((payload: any) =>
+        payload?.purpose === 'MFA_LOGIN' ? 'mock-mfa-ticket' : 'mock-jwt-token'
+      );
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1', email: 'ok@test.com', status: 'ACTIVE', passwordHash: 'hashed',
+        role: 'BUYER', lastLoginIp: null, emailVerifiedAt: new Date(), createdAt: new Date(),
+        mfaEnabled: true, mfaSecret: 'MOCKSECRET',
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      prisma.user.update.mockResolvedValue({});
+      prisma.userLoginLog.create.mockResolvedValue({});
+
+      const result = await service.login({ email: 'ok@test.com', password: 'correct' });
+      expect(result).toEqual(
+        expect.objectContaining({
+          mfaRequired: true,
+          mfaTicket: 'mock-mfa-ticket'
+        })
+      );
+      expect((result as any).token).toBeUndefined();
     });
   });
 
@@ -187,7 +212,7 @@ describe('AuthService', () => {
 
     it('verifyMfaLogin should return token on valid code', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: 'x@x.com', role: 'BUYER', mfaEnabled: true, mfaSecret: 'MOCKSECRET' });
-      const result = await service.verifyMfaLogin('u1', '123456');
+      const result = await service.verifyMfaLogin('mfa-ticket', '123456');
       expect(result).toHaveProperty('token', 'mock-jwt-token');
     });
   });

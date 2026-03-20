@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { PayChannel, RiskScene } from '@prisma/client';
@@ -26,7 +26,8 @@ export class PaymentWebhookService {
     const amountNum = Number(payload.amount);
     if (!amountNum || amountNum <= 0) throw new BadRequestException('金额无效');
 
-    const secret = this.resolveSecret(channel);
+    const payChannel = this.resolveRouteChannel(channel);
+    const secret = this.resolveSecret(payChannel);
     if (!this.verifySignature(payload as Record<string, unknown>, secret, sign)) {
       throw new UnauthorizedException('签名校验失败');
     }
@@ -34,7 +35,6 @@ export class PaymentWebhookService {
       throw new BadRequestException('回调超时或时间戳无效');
     }
 
-    const payChannel = channel.toUpperCase() as PayChannel;
     this.validateChannelConsistency(channel, payload.channel);
     await this.validateAmount(orderId, amountNum);
 
@@ -58,13 +58,21 @@ export class PaymentWebhookService {
     return { ok: true };
   }
 
-  private resolveSecret(channel: string) {
-    switch (channel.toLowerCase()) {
-      case 'alipay':
+  private resolveRouteChannel(channel: string): PayChannel {
+    const normalized = channel.toLowerCase();
+    if (normalized === 'alipay') return PayChannel.ALIPAY;
+    if (normalized === 'wechat') return PayChannel.WECHAT;
+    if (normalized === 'usdt') return PayChannel.USDT;
+    throw new BadRequestException('不支持的支付渠道');
+  }
+
+  private resolveSecret(channel: PayChannel) {
+    switch (channel) {
+      case PayChannel.ALIPAY:
         return process.env.PAY_WEBHOOK_SECRET_ALIPAY || '';
-      case 'wechat':
+      case PayChannel.WECHAT:
         return process.env.PAY_WEBHOOK_SECRET_WECHAT || '';
-      case 'usdt':
+      case PayChannel.USDT:
         return process.env.PAY_WEBHOOK_SECRET_USDT || '';
       default:
         return process.env.PAY_WEBHOOK_SECRET_MANUAL || '';
@@ -72,6 +80,8 @@ export class PaymentWebhookService {
   }
 
   private verifySignature(payload: Record<string, unknown>, secret: string, sign: string) {
+    if (!secret?.trim()) return false;
+
     const cloned = { ...payload };
     delete cloned['sign'];
     // 规范化顺序：按 key 排序后 JSON 序列化
@@ -83,7 +93,9 @@ export class PaymentWebhookService {
       }, {} as Record<string, unknown>);
     const data = JSON.stringify(sorted);
     const digest = createHmac('sha256', secret).update(data).digest('hex');
-    return digest === sign;
+    const expected = Buffer.from(digest, 'hex');
+    const actual = Buffer.from(String(sign || '').trim().toLowerCase(), 'hex');
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
   }
 
   private verifyTimestamp(ts: number) {

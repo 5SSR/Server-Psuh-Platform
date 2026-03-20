@@ -26,8 +26,9 @@ function consignmentTone(status?: string) {
   return '';
 }
 
-export default async function ProductDetail({ params }: { params: { id: string } }) {
-  const detail = await api.productDetail(params.id);
+export default async function ProductDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const detail = await api.productDetail(id);
   const latestConsignment = detail.consignmentApplications?.[0];
 
   return (

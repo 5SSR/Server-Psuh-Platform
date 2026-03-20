@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -9,6 +9,10 @@ import { UpsertRiskRuleDto } from '../risk/dto/upsert-risk-rule.dto';
 import { RiskHitQueryDto } from '../risk/dto/risk-hit-query.dto';
 import { RiskEntityQueryDto } from '../risk/dto/risk-entity-query.dto';
 import { UpsertRiskEntityDto } from '../risk/dto/upsert-risk-entity.dto';
+import { BatchUpsertRiskEntityDto } from '../risk/dto/batch-upsert-risk-entity.dto';
+import { UpdateRiskEntityDto } from '../risk/dto/update-risk-entity.dto';
+import { UpdateRiskRuleDto } from '../risk/dto/update-risk-rule.dto';
+import { SyncWatchlistDto } from '../risk/dto/sync-watchlist.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('admin/risk')
@@ -39,7 +43,7 @@ export class AdminRiskController {
   @Patch('rules/:id')
   updateRule(
     @Param('id') id: string,
-    @Body() dto: Partial<UpsertRiskRuleDto> & { enabled?: boolean },
+    @Body() dto: UpdateRiskRuleDto,
     @CurrentUser() user: { userId: string }
   ) {
     return this.riskService.updateRule(id, { ...dto, updatedBy: user.userId });
@@ -62,14 +66,7 @@ export class AdminRiskController {
 
   @Post('entities/batch-upsert')
   batchUpsertEntities(
-    @Body() dto: {
-      listType: string;
-      entityType: string;
-      entityValues: string[];
-      reason?: string;
-      enabled?: boolean;
-      expiresAt?: string;
-    }
+    @Body() dto: BatchUpsertRiskEntityDto
   ) {
     return this.riskService.batchUpsertEntities(dto);
   }
@@ -90,14 +87,21 @@ export class AdminRiskController {
   @Patch('entities/:id')
   updateEntity(
     @Param('id') id: string,
-    @Body() dto: { enabled?: boolean; reason?: string; expiresAt?: string }
+    @Body() dto: UpdateRiskEntityDto
   ) {
+    if (
+      dto.enabled === undefined &&
+      dto.reason === undefined &&
+      dto.expiresAt === undefined
+    ) {
+      throw new BadRequestException('至少提供一个可更新字段');
+    }
     return this.riskService.updateEntity(id, dto);
   }
 
   @Post('watchlist/sync')
   syncWatchlist(
-    @Body() dto: { windowHours?: number; thresholdScore?: number }
+    @Body() dto: SyncWatchlistDto
   ) {
     return this.riskService.syncAutoWatchlist(dto);
   }

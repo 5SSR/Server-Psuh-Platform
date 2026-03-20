@@ -6,9 +6,10 @@ export const dynamic = 'force-dynamic';
 export default async function AnnouncementDetailPage({
   params
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const data = await api.announcementById(params.id);
+  const { id } = await params;
+  const data = await api.announcementById(id);
 
   return (
     <main className="page page-shell">

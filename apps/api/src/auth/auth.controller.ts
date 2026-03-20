@@ -20,6 +20,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { SecurityLogQueryDto } from './dto/security-log-query.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { VerifyMfaDto } from './dto/verify-mfa.dto';
+import { VerifyMfaLoginDto } from './dto/verify-mfa-login.dto';
 
 interface RequestMeta {
   ip?: string;
@@ -117,7 +118,7 @@ export class AuthController {
   }
 
   @Post('mfa/verify')
-  verifyMfa(@Body() body: { userId: string; token: string }) {
-    return this.authService.verifyMfaLogin(body.userId, body.token);
+  verifyMfa(@Body() dto: VerifyMfaLoginDto) {
+    return this.authService.verifyMfaLogin(dto.ticket, dto.token);
   }
 }

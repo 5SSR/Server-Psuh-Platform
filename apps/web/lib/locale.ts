@@ -57,6 +57,20 @@ export function toLocaleRoute(path: string, locale?: string | null) {
   return toLocalePath(path, locale) as any;
 }
 
+export function sanitizeRedirectPath(
+  input?: string | null,
+  fallback = '/'
+) {
+  if (!input || typeof input !== 'string') return fallback;
+  const value = input.trim();
+  if (!value.startsWith('/')) return fallback;
+  // 防止 `//evil.com` 这类协议相对地址跳转
+  if (value.startsWith('//')) return fallback;
+  // 防止反斜杠绕过
+  if (value.startsWith('/\\')) return fallback;
+  return value;
+}
+
 export function readLocaleFromCookie(cookieText?: string | null): AppLocale | null {
   if (!cookieText) return null;
   const target = cookieText

@@ -135,4 +135,39 @@ describe('OrderService', () => {
       expect(result).toHaveLength(1);
     });
   });
+
+  describe('reviewOrderRisk', () => {
+    it('should resume canceled order to pending payment when approved', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'o1',
+        status: 'CANCELED',
+        payStatus: 'UNPAID',
+        riskReviewRequired: true,
+        riskReviewPassed: false
+      });
+      prisma.order.update.mockResolvedValue({});
+      prisma.orderLog.create.mockResolvedValue({});
+
+      const result = await service.reviewOrderRisk('o1', 'admin1', {
+        approved: true,
+        remark: '复审通过'
+      });
+
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'o1' },
+          data: expect.objectContaining({
+            status: 'PENDING_PAYMENT',
+            riskReviewPassed: true
+          })
+        })
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          ok: true,
+          nextStatus: 'PENDING_PAYMENT'
+        })
+      );
+    });
+  });
 });

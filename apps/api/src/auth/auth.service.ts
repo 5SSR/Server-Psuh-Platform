@@ -29,6 +29,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SecurityLogQueryDto } from './dto/security-log-query.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { resolveAuthCodeSecret } from './auth-secret.util';
 
 
 
@@ -67,6 +68,25 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
+  private signMfaTicket(payload: { sub: string }) {
+    return this.jwtService.sign(
+      { sub: payload.sub, purpose: 'MFA_LOGIN' },
+      { expiresIn: (process.env.AUTH_MFA_TICKET_EXPIRES || '5m') as any }
+    );
+  }
+
+  private verifyMfaTicket(ticket: string) {
+    try {
+      const decoded = this.jwtService.verify(ticket) as Record<string, unknown>;
+      if (decoded?.purpose !== 'MFA_LOGIN' || typeof decoded?.sub !== 'string') {
+        throw new UnauthorizedException('MFA 票据无效');
+      }
+      return decoded.sub;
+    } catch {
+      throw new UnauthorizedException('MFA 票据无效或已过期');
+    }
+  }
+
   private presentRole(role: UserRole) {
     return role === UserRole.ADMIN ? 'ADMIN' : 'USER';
   }
@@ -95,7 +115,7 @@ export class AuthService {
   }
 
   private hashCode(code: string) {
-    const secret = process.env.AUTH_CODE_SECRET || process.env.JWT_SECRET || 'auth-code';
+    const secret = resolveAuthCodeSecret();
     return createHash('sha256')
       .update(`${code}:${secret}`)
       .digest('hex');
@@ -340,16 +360,26 @@ export class AuthService {
       });
     }
 
+    const userInfo = {
+      id: user.id,
+      email: user.email,
+      role: this.presentRole(user.role),
+      status: user.status,
+      emailVerifiedAt: user.emailVerifiedAt,
+      createdAt: user.createdAt
+    };
+
+    if (user.mfaEnabled && user.mfaSecret) {
+      return {
+        mfaRequired: true,
+        mfaTicket: this.signMfaTicket({ sub: user.id }),
+        user: userInfo
+      };
+    }
+
     return {
       token: this.signToken({ sub: user.id, role: user.role }),
-      user: {
-        id: user.id,
-        email: user.email,
-        role: this.presentRole(user.role),
-        status: user.status,
-        emailVerifiedAt: user.emailVerifiedAt,
-        createdAt: user.createdAt
-      }
+      user: userInfo
     };
   }
 
@@ -503,7 +533,8 @@ export class AuthService {
     return { message: 'MFA 已关闭' };
   }
 
-  async verifyMfaLogin(userId: string, token: string) {
+  async verifyMfaLogin(ticket: string, token: string) {
+    const userId = this.verifyMfaTicket(ticket);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('用户不存在');
     if (!user.mfaEnabled || !user.mfaSecret) {

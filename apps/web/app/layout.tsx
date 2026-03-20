@@ -9,12 +9,13 @@ export const metadata: Metadata = {
   description: '担保交易 · 交付核验 · 风险可控'
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  const localeHeader = headers().get('x-idc-locale');
+  const headerStore = await headers();
+  const localeHeader = headerStore.get('x-idc-locale');
   const htmlLang = localeHeader?.toLowerCase().startsWith('en') ? 'en-US' : 'zh-CN';
 
   return (

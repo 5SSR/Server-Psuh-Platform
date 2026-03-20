@@ -113,7 +113,13 @@ describe('UserInteractionService', () => {
   });
 
   describe('createAlert', () => {
+    it('should throw when product does not exist', async () => {
+      prisma.product.findUnique.mockResolvedValue(null);
+      await expect(service.createAlert('u1', 'p1', 100)).rejects.toThrow(NotFoundException);
+    });
+
     it('should create price alert', async () => {
+      prisma.product.findUnique.mockResolvedValue({ id: 'p1' });
       prisma.priceAlert.create.mockResolvedValue({ id: 'pa1' });
       const result = await service.createAlert('u1', 'p1', 100);
       expect(result).toHaveProperty('id', 'pa1');

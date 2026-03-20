@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '../../../lib/use-locale';
-import { toLocaleHref, toLocalePath } from '../../../lib/locale';
+import { sanitizeRedirectPath, toLocaleHref, toLocalePath } from '../../../lib/locale';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -33,8 +33,9 @@ export default function RegisterPage() {
         type: 'success',
         text: t('注册成功，正在进入交易市场...', 'Registration successful, redirecting to marketplace...')
       });
-      const redirect = new URLSearchParams(window.location.search).get('redirect');
-      const nextPath = redirect && redirect.startsWith('/') ? redirect : toLocalePath('/products', locale);
+      const redirectRaw = new URLSearchParams(window.location.search).get('redirect');
+      const redirect = sanitizeRedirectPath(redirectRaw, toLocalePath('/products', locale));
+      const nextPath = toLocalePath(redirect, locale);
       window.location.replace(nextPath);
     } catch (e: any) {
       setFeedback({

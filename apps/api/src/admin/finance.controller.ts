@@ -52,12 +52,23 @@ export class AdminFinanceController {
       .map((row) =>
         row
           .map((cell) => {
-            const value = cell === null || cell === undefined ? '' : String(cell);
+            const value = this.sanitizeCsvCell(
+              cell === null || cell === undefined ? '' : String(cell)
+            );
             return `"${value.replace(/"/g, '""')}"`;
           })
           .join(',')
       )
       .join('\n');
+  }
+
+  private sanitizeCsvCell(value: string) {
+    if (!value) return '';
+    const first = value[0];
+    if (first === '=' || first === '+' || first === '-' || first === '@') {
+      return `'${value}`;
+    }
+    return value;
   }
 
   @Get('overview')

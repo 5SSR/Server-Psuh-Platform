@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 import { UserInteractionService } from './user-interaction.service';
+import { CreatePriceAlertDto } from './dto/create-price-alert.dto';
 
 @Controller('user')
 @UseGuards(JwtAuthGuard)
@@ -83,9 +84,9 @@ export class UserInteractionController {
   @Post('price-alerts')
   createAlert(
     @CurrentUser() user: { userId: string },
-    @Body() body: { productId: string; targetPrice: number }
+    @Body() dto: CreatePriceAlertDto
   ) {
-    return this.interactionService.createAlert(user.userId, body.productId, body.targetPrice);
+    return this.interactionService.createAlert(user.userId, dto.productId, dto.targetPrice);
   }
 
   @Delete('price-alerts/:id')

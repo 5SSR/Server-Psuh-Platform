@@ -8,8 +8,13 @@ function fmtRate(v?: number | null) {
   return `${(((v ?? 0) || 0) * 100).toFixed(2)}%`;
 }
 
-export default async function StorePage({ params }: { params: { sellerId: string } }) {
-  const data = await api.storeBySeller(params.sellerId);
+export default async function StorePage({
+  params
+}: {
+  params: Promise<{ sellerId: string }>;
+}) {
+  const { sellerId } = await params;
+  const data = await api.storeBySeller(sellerId);
   const profile = data.store.user.sellerProfile;
 
   return (

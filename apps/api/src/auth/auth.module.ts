@@ -8,6 +8,7 @@ import { RiskModule } from '../risk/risk.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { resolveJwtSecret } from './auth-secret.util';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { JwtStrategy } from './jwt.strategy';
     NoticeModule,
     RiskModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'change-me',
+      secret: resolveJwtSecret(),
       signOptions: { expiresIn: (process.env.JWT_EXPIRES || '7d') as any }
     })
   ],

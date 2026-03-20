@@ -13,13 +13,13 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 type Props = {
-  searchParams: {
+  searchParams: Promise<{
     category?: string;
     region?: string;
     lineType?: string;
     keyword?: string;
     page?: string;
-  };
+  }>;
 };
 
 function parsePage(value?: string) {
@@ -28,14 +28,15 @@ function parsePage(value?: string) {
 }
 
 export default async function WantedPage({ searchParams }: Props) {
-  const page = parsePage(searchParams.page);
+  const resolvedSearchParams = await searchParams;
+  const page = parsePage(resolvedSearchParams.page);
   const query = new URLSearchParams();
   query.set('page', String(page));
   query.set('pageSize', '20');
-  if (searchParams.category) query.set('category', searchParams.category);
-  if (searchParams.region) query.set('region', searchParams.region);
-  if (searchParams.lineType) query.set('lineType', searchParams.lineType);
-  if (searchParams.keyword) query.set('keyword', searchParams.keyword);
+  if (resolvedSearchParams.category) query.set('category', resolvedSearchParams.category);
+  if (resolvedSearchParams.region) query.set('region', resolvedSearchParams.region);
+  if (resolvedSearchParams.lineType) query.set('lineType', resolvedSearchParams.lineType);
+  if (resolvedSearchParams.keyword) query.set('keyword', resolvedSearchParams.keyword);
 
   const [summary, wanted] = await Promise.all([
     api.wantedSummary(),
@@ -80,11 +81,11 @@ export default async function WantedPage({ searchParams }: Props) {
         <div className="filter-grid">
           <div className="field">
             <label>关键词</label>
-            <input name="keyword" defaultValue={searchParams.keyword || ''} placeholder="标题/描述" />
+            <input name="keyword" defaultValue={resolvedSearchParams.keyword || ''} placeholder="标题/描述" />
           </div>
           <div className="field">
             <label>分类</label>
-            <select name="category" defaultValue={searchParams.category || ''}>
+            <select name="category" defaultValue={resolvedSearchParams.category || ''}>
               <option value="">全部</option>
               <option value="VPS">VPS</option>
               <option value="DEDICATED">独立服务器</option>
@@ -95,11 +96,19 @@ export default async function WantedPage({ searchParams }: Props) {
           </div>
           <div className="field">
             <label>地区</label>
-            <input name="region" defaultValue={searchParams.region || ''} placeholder="香港/东京/洛杉矶" />
+            <input
+              name="region"
+              defaultValue={resolvedSearchParams.region || ''}
+              placeholder="香港/东京/洛杉矶"
+            />
           </div>
           <div className="field">
             <label>线路</label>
-            <input name="lineType" defaultValue={searchParams.lineType || ''} placeholder="CN2 / CMI / 4837" />
+            <input
+              name="lineType"
+              defaultValue={resolvedSearchParams.lineType || ''}
+              placeholder="CN2 / CMI / 4837"
+            />
           </div>
         </div>
         <div className="toolbar">
@@ -155,14 +164,22 @@ export default async function WantedPage({ searchParams }: Props) {
       <section className="toolbar" style={{ justifyContent: 'space-between' }}>
         <Link
           className={`btn secondary${page <= 1 ? ' disabled' : ''}`}
-          href={page <= 1 ? '/wanted' : `/wanted?${new URLSearchParams({ ...Object.fromEntries(Object.entries(searchParams).filter(([, v]) => Boolean(v))), page: String(page - 1) }).toString()}`}
+          href={
+            page <= 1
+              ? '/wanted'
+              : `/wanted?${new URLSearchParams({ ...Object.fromEntries(Object.entries(resolvedSearchParams).filter(([, v]) => Boolean(v))), page: String(page - 1) }).toString()}`
+          }
         >
           上一页
         </Link>
         <span className="muted">第 {page} / {totalPages} 页</span>
         <Link
           className={`btn secondary${page >= totalPages ? ' disabled' : ''}`}
-          href={page >= totalPages ? `/wanted?page=${page}` : `/wanted?${new URLSearchParams({ ...Object.fromEntries(Object.entries(searchParams).filter(([, v]) => Boolean(v))), page: String(page + 1) }).toString()}`}
+          href={
+            page >= totalPages
+              ? `/wanted?page=${page}`
+              : `/wanted?${new URLSearchParams({ ...Object.fromEntries(Object.entries(resolvedSearchParams).filter(([, v]) => Boolean(v))), page: String(page + 1) }).toString()}`
+          }
         >
           下一页
         </Link>

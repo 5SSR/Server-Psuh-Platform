@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '../../../lib/use-locale';
-import { toLocaleHref, toLocalePath } from '../../../lib/locale';
+import { sanitizeRedirectPath, toLocaleHref, toLocalePath } from '../../../lib/locale';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -11,13 +11,24 @@ export default function LoginPage() {
   const { t, locale } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mfaToken, setMfaToken] = useState('');
+  const [mfaTicket, setMfaTicket] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: 'success' | 'error' | '';
     text: string;
   }>({ type: '', text: '' });
 
-  const submit = async () => {
+  const finishLogin = (token: string) => {
+    localStorage.setItem('idc_token', token);
+    const redirectRaw = new URLSearchParams(window.location.search).get('redirect');
+    const redirect = sanitizeRedirectPath(redirectRaw, toLocalePath('/products', locale));
+    const nextPath = toLocalePath(redirect, locale);
+    window.location.replace(nextPath);
+  };
+
+  const submitPassword = async () => {
     setLoading(true);
     setFeedback({ type: '', text: '' });
     try {
@@ -28,18 +39,58 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '登录失败');
-      localStorage.setItem('idc_token', data.token);
+      if (data?.mfaRequired) {
+        setMfaRequired(true);
+        setMfaTicket(String(data?.mfaTicket || ''));
+        setFeedback({
+          type: 'success',
+          text: t('账号密码验证成功，请输入 MFA 验证码完成登录。', 'Password verified. Enter MFA code to complete sign-in.')
+        });
+        return;
+      }
+
+      if (!data?.token) {
+        throw new Error(t('登录响应缺少 token', 'Login response missing token'));
+      }
       setFeedback({
         type: 'success',
         text: t('登录成功，正在跳转交易市场...', 'Login successful, redirecting to marketplace...')
       });
-      const redirect = new URLSearchParams(window.location.search).get('redirect');
-      const nextPath = redirect && redirect.startsWith('/') ? redirect : toLocalePath('/products', locale);
-      window.location.replace(nextPath);
+      finishLogin(data.token);
     } catch (e: any) {
       setFeedback({
         type: 'error',
         text: e.message || t('登录失败，请检查账号密码', 'Login failed, please check email and password')
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitMfa = async () => {
+    if (!mfaRequired || !mfaTicket) return;
+    setLoading(true);
+    setFeedback({ type: '', text: '' });
+    try {
+      const res = await fetch(`${API_BASE}/auth/mfa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket: mfaTicket, token: mfaToken })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'MFA 验证失败');
+      if (!data?.token) {
+        throw new Error(t('MFA 验证响应缺少 token', 'MFA verify response missing token'));
+      }
+      setFeedback({
+        type: 'success',
+        text: t('MFA 验证成功，正在跳转交易市场...', 'MFA verified, redirecting to marketplace...')
+      });
+      finishLogin(data.token);
+    } catch (e: any) {
+      setFeedback({
+        type: 'error',
+        text: e.message || t('MFA 验证失败，请重试', 'MFA verification failed, please retry')
       });
     } finally {
       setLoading(false);
@@ -84,7 +135,11 @@ export default function LoginPage() {
             className="form auth-form"
             onSubmit={(e) => {
               e.preventDefault();
-              submit();
+              if (mfaRequired) {
+                submitMfa();
+              } else {
+                submitPassword();
+              }
             }}
           >
             <label>{t('邮箱地址', 'Email')}</label>
@@ -102,8 +157,27 @@ export default function LoginPage() {
               placeholder={t('请输入密码', 'Enter your password')}
               autoComplete="current-password"
             />
-            <button type="submit" className="btn primary" disabled={loading || !email || !password}>
-              {loading ? t('登录中...', 'Signing in...') : t('登录并进入平台', 'Sign in')}
+            {mfaRequired ? (
+              <>
+                <label>{t('MFA 验证码', 'MFA Code')}</label>
+                <input
+                  value={mfaToken}
+                  onChange={(e) => setMfaToken(e.target.value.trim())}
+                  placeholder={t('请输入 6 位验证码', 'Enter 6-digit code')}
+                  autoComplete="one-time-code"
+                />
+              </>
+            ) : null}
+            <button
+              type="submit"
+              className="btn primary"
+              disabled={loading || !email || !password || (mfaRequired && !mfaToken)}
+            >
+              {loading
+                ? t('处理中...', 'Processing...')
+                : mfaRequired
+                  ? t('验证 MFA 并登录', 'Verify MFA and sign in')
+                  : t('登录并进入平台', 'Sign in')}
             </button>
           </form>
 

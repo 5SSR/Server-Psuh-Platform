@@ -1389,7 +1389,11 @@ export class OrderService {
         throw new BadRequestException('订单已支付，无法再次执行风控审核');
       }
 
-      const nextStatus = input.approved ? order.status : OrderStatus.CANCELED;
+      const nextStatus = input.approved
+        ? order.status === OrderStatus.CANCELED
+          ? OrderStatus.PENDING_PAYMENT
+          : order.status
+        : OrderStatus.CANCELED;
       const nextRiskPassed = input.approved;
       const action = input.approved ? 'RISK_REVIEW_PASS' : 'RISK_REVIEW_REJECT';
 

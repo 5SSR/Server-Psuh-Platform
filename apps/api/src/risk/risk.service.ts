@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, RiskAction, RiskScene } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -77,20 +77,30 @@ export class RiskService {
     enabled?: boolean;
     updatedBy?: string;
   }) {
-    return this.prisma.riskRule.update({
-      where: { id },
-      data: {
-        ...(input.code ? { code: input.code } : {}),
-        ...(input.name ? { name: input.name } : {}),
-        ...(input.scene ? { scene: input.scene } : {}),
-        ...(input.action ? { action: input.action } : {}),
-        ...(typeof input.priority === 'number' ? { priority: input.priority } : {}),
-        ...(input.condition ? { condition: input.condition as any } : {}),
-        ...(typeof input.reason !== 'undefined' ? { reason: input.reason } : {}),
-        ...(typeof input.enabled === 'boolean' ? { enabled: input.enabled } : {}),
-        ...(input.updatedBy ? { updatedBy: input.updatedBy } : {})
+    try {
+      return await this.prisma.riskRule.update({
+        where: { id },
+        data: {
+          ...(input.code ? { code: input.code } : {}),
+          ...(input.name ? { name: input.name } : {}),
+          ...(input.scene ? { scene: input.scene } : {}),
+          ...(input.action ? { action: input.action } : {}),
+          ...(typeof input.priority === 'number' ? { priority: input.priority } : {}),
+          ...(input.condition ? { condition: input.condition as any } : {}),
+          ...(typeof input.reason !== 'undefined' ? { reason: input.reason } : {}),
+          ...(typeof input.enabled === 'boolean' ? { enabled: input.enabled } : {}),
+          ...(input.updatedBy ? { updatedBy: input.updatedBy } : {})
+        }
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('风控规则不存在');
       }
-    });
+      throw error;
+    }
   }
 
   async listHits(query: { page?: number; pageSize?: number; scene?: RiskScene; action?: RiskAction; userId?: string }) {
@@ -256,16 +266,26 @@ export class RiskService {
   }
 
   async updateEntity(id: string, input: { enabled?: boolean; reason?: string; expiresAt?: string }) {
-    return this.prisma.riskEntityList.update({
-      where: { id },
-      data: {
-        ...(typeof input.enabled === 'boolean' ? { enabled: input.enabled } : {}),
-        ...(typeof input.reason !== 'undefined' ? { reason: input.reason } : {}),
-        ...(typeof input.expiresAt !== 'undefined'
-          ? { expiresAt: input.expiresAt ? new Date(input.expiresAt) : null }
-          : {})
+    try {
+      return await this.prisma.riskEntityList.update({
+        where: { id },
+        data: {
+          ...(typeof input.enabled === 'boolean' ? { enabled: input.enabled } : {}),
+          ...(typeof input.reason !== 'undefined' ? { reason: input.reason } : {}),
+          ...(typeof input.expiresAt !== 'undefined'
+            ? { expiresAt: input.expiresAt ? new Date(input.expiresAt) : null }
+            : {})
+        }
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('风险名单记录不存在');
       }
-    });
+      throw error;
+    }
   }
 
   async batchUpsertEntities(input: {

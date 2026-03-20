@@ -188,10 +188,11 @@ export class PaymentRefundService {
   }
 
   private resolveGatewayMode(channel: PayChannel): GatewayMode {
-    const raw = String(process.env[`PAY_GATEWAY_${channel}_MODE`] || 'MOCK').toUpperCase();
+    const raw = String(process.env[`PAY_GATEWAY_${channel}_MODE`] || '').trim().toUpperCase();
     if (raw === 'REMOTE') return 'REMOTE';
     if (raw === 'DISABLED') return 'DISABLED';
-    return 'MOCK';
+    if (raw === 'MOCK') return 'MOCK';
+    return 'DISABLED';
   }
 
   private async appendEvent(paymentId: string, eventType: string, payload: Record<string, unknown>) {

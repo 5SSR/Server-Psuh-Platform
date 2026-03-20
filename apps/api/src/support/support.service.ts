@@ -59,12 +59,15 @@ export class SupportService {
       if (order.buyerId !== userId && order.sellerId !== userId) {
         throw new ForbiddenException('仅订单关联用户可发起售后工单');
       }
+      if (dto.productId && dto.productId !== order.productId) {
+        throw new BadRequestException('工单商品与订单不一致');
+      }
 
       return this.prisma.supportTicket.create({
         data: {
           userId,
           orderId: order.id,
-          productId: dto.productId ?? order.productId,
+          productId: order.productId,
           type: dto.type ?? 'AFTER_SALE',
           subject: dto.subject.trim(),
           content: dto.content.trim(),
