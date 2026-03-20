@@ -9,6 +9,16 @@ import {
   formatDateTime,
   formatMoney
 } from '../../../components/admin/console-primitives';
+import {
+  FEE_PAYER_LABEL,
+  NOTICE_CHANNEL_MODE_LABEL,
+  ORDER_STATUS_LABEL,
+  PAY_CHANNEL_LABEL,
+  PAY_STATUS_LABEL,
+  REVIEW_STATUS_LABEL,
+  RECONCILE_TASK_STATUS_LABEL,
+  labelByMap
+} from '../../../lib/admin-enums';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -135,18 +145,6 @@ type PaymentDiagnosticsReport = {
     reviewedAt?: string | null;
     reviewedBy?: string | null;
   }>;
-};
-
-const payStatusLabel: Record<string, string> = {
-  UNPAID: '待支付',
-  PAID: '已支付',
-  REFUNDED: '已退款'
-};
-
-const reviewStatusLabel: Record<ReviewStatus, string> = {
-  NORMAL: '正常',
-  SUSPICIOUS: '可疑',
-  FRAUD: '风险'
 };
 
 function payTone(status: string) {
@@ -492,20 +490,20 @@ export default function AdminPaymentsPage() {
             <label>支付状态</label>
             <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)}>
               <option value="">全部</option>
-              <option value="UNPAID">UNPAID</option>
-              <option value="PAID">PAID</option>
-              <option value="REFUNDED">REFUNDED</option>
+              <option value="UNPAID">待支付</option>
+              <option value="PAID">已支付</option>
+              <option value="REFUNDED">已退款</option>
             </select>
           </div>
           <div className="field">
             <label>支付渠道</label>
             <select value={channel} onChange={(e) => setChannel(e.target.value)}>
               <option value="">全部</option>
-              <option value="BALANCE">BALANCE</option>
-              <option value="ALIPAY">ALIPAY</option>
-              <option value="WECHAT">WECHAT</option>
+              <option value="BALANCE">余额</option>
+              <option value="ALIPAY">支付宝</option>
+              <option value="WECHAT">微信支付</option>
               <option value="USDT">USDT</option>
-              <option value="MANUAL">MANUAL</option>
+              <option value="MANUAL">人工</option>
             </select>
           </div>
           <div className="field">
@@ -588,11 +586,11 @@ export default function AdminPaymentsPage() {
                 {integrations.map((item) => (
                   <tr key={item.channel}>
                     <td data-label="渠道">
-                      <div className="console-row-primary">{item.channel}</div>
+                      <div className="console-row-primary">{labelByMap(item.channel, PAY_CHANNEL_LABEL, item.channel)}</div>
                       <p className="console-row-sub">{item.enabled ? '已启用' : '已禁用'}</p>
                     </td>
                     <td data-label="运行模式">
-                      <StatusBadge tone={gatewayModeTone(item.mode)}>{item.mode}</StatusBadge>
+                      <StatusBadge tone={gatewayModeTone(item.mode)}>{labelByMap(item.mode, NOTICE_CHANNEL_MODE_LABEL, item.mode)}</StatusBadge>
                     </td>
                     <td data-label="验签 / 回调">
                       <div className="console-inline-tags">
@@ -614,7 +612,7 @@ export default function AdminPaymentsPage() {
                         </StatusBadge>
                         {item.reconcile?.lastTask ? (
                           <StatusBadge tone={item.reconcile.lastTask.status === 'COMPLETED' ? 'success' : 'warning'}>
-                            最近对账 {item.reconcile.lastTask.status}
+                            最近对账 {labelByMap(item.reconcile.lastTask.status, RECONCILE_TASK_STATUS_LABEL, item.reconcile.lastTask.status)}
                           </StatusBadge>
                         ) : (
                           <StatusBadge tone="default">暂无对账任务</StatusBadge>
@@ -686,18 +684,18 @@ export default function AdminPaymentsPage() {
                     </td>
                     <td data-label="风险级别">
                       <StatusBadge tone={item.reviewStatus === 'FRAUD' ? 'danger' : 'warning'}>
-                        {item.reviewStatus === 'FRAUD' ? 'FRAUD（风险）' : 'SUSPICIOUS（可疑）'}
+                        {labelByMap(item.reviewStatus, REVIEW_STATUS_LABEL, item.reviewStatus)}
                       </StatusBadge>
                     </td>
                     <td data-label="渠道 / 金额">
                       <div className="console-row-primary">
-                        {item.channel} / {formatMoney(item.amount)}
+                        {labelByMap(item.channel, PAY_CHANNEL_LABEL, item.channel)} / {formatMoney(item.amount)}
                       </div>
                       <p className="console-row-sub">{item.tradeNo || '无交易号'}</p>
                     </td>
                     <td data-label="订单状态">
-                      <div className="console-row-primary">{item.orderStatus || '-'}</div>
-                      <p className="console-row-sub">支付：{item.payStatus}</p>
+                      <div className="console-row-primary">{labelByMap(item.orderStatus || '', ORDER_STATUS_LABEL, item.orderStatus || '-')}</div>
+                      <p className="console-row-sub">支付：{labelByMap(item.payStatus, PAY_STATUS_LABEL, item.payStatus)}</p>
                     </td>
                     <td data-label="复核信息">
                       <div className="console-row-primary">{formatDateTime(item.reviewedAt)}</div>
@@ -717,10 +715,10 @@ export default function AdminPaymentsPage() {
         className="console-detail stack-12"
       >
         <div className="console-detail-grid">
-          <div className="spec-item">
-            <p className="label">配置来源</p>
-            <p className="value">{orderFeeConfig?.source || 'ENV'}</p>
-          </div>
+              <div className="spec-item">
+                <p className="label">配置来源</p>
+                <p className="value">{orderFeeConfig?.source === 'DB' ? '数据库配置' : '环境变量默认'}</p>
+              </div>
           <div className="spec-item">
             <p className="label">最近更新时间</p>
             <p className="value">{formatDateTime(orderFeeConfig?.updatedAt)}</p>
@@ -740,9 +738,9 @@ export default function AdminPaymentsPage() {
                 setFeeDraft((prev) => ({ ...prev, mode: e.target.value as FeeMode }))
               }
             >
-              <option value="FIXED">FIXED（固定金额）</option>
-              <option value="RATE">RATE（比例）</option>
-              <option value="TIER">TIER（阶梯）</option>
+              <option value="FIXED">固定金额</option>
+              <option value="RATE">按比例</option>
+              <option value="TIER">阶梯费率</option>
             </select>
           </div>
           <div className="field">
@@ -753,13 +751,13 @@ export default function AdminPaymentsPage() {
                 setFeeDraft((prev) => ({ ...prev, payer: e.target.value as FeePayer }))
               }
             >
-              <option value="SELLER">SELLER（卖家）</option>
-              <option value="BUYER">BUYER（买家）</option>
-              <option value="SHARED">SHARED（买卖各半）</option>
+              <option value="SELLER">卖家承担</option>
+              <option value="BUYER">买家承担</option>
+              <option value="SHARED">买卖各半</option>
             </select>
           </div>
           <div className="field">
-            <label>fixedFee</label>
+            <label>固定费用（元）</label>
             <input
               value={feeDraft.fixedFee}
               onChange={(e) => setFeeDraft((prev) => ({ ...prev, fixedFee: e.target.value }))}
@@ -767,7 +765,7 @@ export default function AdminPaymentsPage() {
             />
           </div>
           <div className="field">
-            <label>rate</label>
+            <label>费率（0~1）</label>
             <input
               value={feeDraft.rate}
               onChange={(e) => setFeeDraft((prev) => ({ ...prev, rate: e.target.value }))}
@@ -775,7 +773,7 @@ export default function AdminPaymentsPage() {
             />
           </div>
           <div className="field">
-            <label>minFee</label>
+            <label>最低费用（元）</label>
             <input
               value={feeDraft.minFee}
               onChange={(e) => setFeeDraft((prev) => ({ ...prev, minFee: e.target.value }))}
@@ -848,7 +846,7 @@ export default function AdminPaymentsPage() {
                         <p className="console-row-sub">卖家：{item.order?.seller?.email || '-'}</p>
                       </td>
                       <td data-label="渠道 / 交易号">
-                        <div className="console-row-primary">{item.channel}</div>
+                        <div className="console-row-primary">{labelByMap(item.channel, PAY_CHANNEL_LABEL, item.channel)}</div>
                         <p className="console-row-sub">{item.tradeNo || '无交易号'}</p>
                       </td>
                       <td data-label="金额">
@@ -857,14 +855,14 @@ export default function AdminPaymentsPage() {
                       </td>
                       <td data-label="支付状态">
                         <div className="console-inline-tags">
-                          <StatusBadge tone={payTone(item.payStatus)}>{payStatusLabel[item.payStatus] || item.payStatus}</StatusBadge>
+                          <StatusBadge tone={payTone(item.payStatus)}>{labelByMap(item.payStatus, PAY_STATUS_LABEL, item.payStatus)}</StatusBadge>
                           {item.paidAt ? <span className="console-row-sub">{formatDateTime(item.paidAt)}</span> : null}
                         </div>
                       </td>
                       <td data-label="排查标记">
                         {reviewStatus ? (
                           <div className="console-inline-tags">
-                            <StatusBadge tone={reviewTone(reviewStatus)}>{reviewStatusLabel[reviewStatus]}</StatusBadge>
+                            <StatusBadge tone={reviewTone(reviewStatus)}>{labelByMap(reviewStatus, REVIEW_STATUS_LABEL, reviewStatus)}</StatusBadge>
                             {item.notifyPayload?.adminReview?.reviewedAt ? (
                               <span className="console-row-sub">{formatDateTime(item.notifyPayload.adminReview.reviewedAt)}</span>
                             ) : null}
@@ -920,7 +918,7 @@ export default function AdminPaymentsPage() {
               <div className="spec-item">
                 <p className="label">订单手续费</p>
                 <p className="value">
-                  {formatMoney(selectedItem.order?.fee || 0)} / {selectedItem.order?.feePayer || 'SELLER'}
+                  {formatMoney(selectedItem.order?.fee || 0)} / {labelByMap(selectedItem.order?.feePayer || 'SELLER', FEE_PAYER_LABEL, selectedItem.order?.feePayer || 'SELLER')}
                 </p>
               </div>
             </div>
@@ -945,14 +943,14 @@ export default function AdminPaymentsPage() {
                       }))
                     }
                   >
-                    <option value="NORMAL">NORMAL（正常）</option>
-                    <option value="SUSPICIOUS">SUSPICIOUS（可疑）</option>
-                    <option value="FRAUD">FRAUD（风险）</option>
+                    <option value="NORMAL">正常</option>
+                    <option value="SUSPICIOUS">可疑</option>
+                    <option value="FRAUD">风险</option>
                   </select>
                 </div>
                 <div className="field">
                   <label>支付状态</label>
-                  <input value={payStatusLabel[selectedItem.payStatus] || selectedItem.payStatus} disabled />
+                  <input value={labelByMap(selectedItem.payStatus, PAY_STATUS_LABEL, selectedItem.payStatus)} disabled />
                 </div>
               </div>
 

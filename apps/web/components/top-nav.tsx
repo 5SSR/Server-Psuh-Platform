@@ -1,13 +1,19 @@
 "use client";
 
-import Link, { type LinkProps } from 'next/link';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import LocaleSwitch from './locale-switch';
+import {
+  hasEnPrefix,
+  toLocaleHref,
+  toLocaleRoute
+} from '../lib/locale';
+import { useLocale } from '../lib/use-locale';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
-type NavItem = { href: LinkProps<string>['href']; label: string };
+type NavItem = { href: string; label: string };
 
 type CurrentUser = {
   email: string;
@@ -19,7 +25,8 @@ const MAIN_LINKS: NavItem[] = [
   { href: '/products', label: '交易市场' },
   { href: '/wanted', label: '求购市场' },
   { href: '/bargains', label: '议价中心' },
-  { href: '/escrow', label: '担保流程' }
+  { href: '/escrow', label: '担保流程' },
+  { href: '/announcements', label: '公告中心' }
 ];
 
 const SELLER_LINKS: NavItem[] = [
@@ -38,6 +45,7 @@ const BUYER_LINKS: NavItem[] = [
   { href: '/wanted/mine', label: '我的求购' },
   { href: '/bargains', label: '我的议价' },
   { href: '/wallet', label: '钱包与结算' },
+  { href: '/profile/support', label: '售后工单' },
   { href: '/profile/history', label: '浏览历史' },
   { href: '/profile/alerts', label: '价格提醒' },
   { href: '/notices', label: '通知中心' },
@@ -52,19 +60,23 @@ const ADMIN_LINKS: NavItem[] = [
   { href: '/admin/bargains', label: '议价管理' },
   { href: '/admin/consignments', label: '寄售审核' },
   { href: '/admin/payments', label: '支付监控' },
+  { href: '/admin/finance', label: '财务报表' },
   { href: '/admin/reconcile', label: '支付对账' },
   { href: '/admin/settlements', label: '结算放款' },
   { href: '/admin/refunds', label: '退款审核' },
   { href: '/admin/disputes', label: '纠纷仲裁' },
   { href: '/admin/withdrawals', label: '提现审核' },
   { href: '/admin/risk', label: '风控策略' },
+  { href: '/admin/security', label: '登录安全' },
+  { href: '/admin/support', label: '售后工单' },
+  { href: '/admin/policies', label: '规则协议' },
   { href: '/admin/open-api', label: '开放接口监控' },
   { href: '/admin/notices', label: '通知管理' },
   { href: '/admin/content', label: '内容运营' },
   { href: '/admin/logs', label: '操作日志' }
 ];
 
-function NavGroup({ label, links }: { label: string; links: NavItem[] }) {
+function NavGroup({ label, links, locale }: { label: string; links: NavItem[]; locale: string }) {
   return (
     <div className="nav-group">
       <button className="nav-group-trigger" type="button">
@@ -72,7 +84,7 @@ function NavGroup({ label, links }: { label: string; links: NavItem[] }) {
       </button>
       <div className="nav-dropdown">
         {links.map((item) => (
-          <Link key={String(item.href)} href={item.href}>
+          <Link key={String(item.href)} href={toLocaleHref(item.href, locale)}>
             {item.label}
           </Link>
         ))}
@@ -84,25 +96,14 @@ function NavGroup({ label, links }: { label: string; links: NavItem[] }) {
 export default function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { locale } = useLocale();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [ready, setReady] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [locale, setLocale] = useState('zh-CN');
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('idc_locale') || 'zh-CN';
-    setLocale(saved);
-    const handler = (event: Event) => {
-      const next = (event as CustomEvent<string>).detail;
-      if (next) setLocale(next);
-    };
-    window.addEventListener('locale-change', handler as EventListener);
-    return () => window.removeEventListener('locale-change', handler as EventListener);
-  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('idc_token');
@@ -140,7 +141,7 @@ export default function TopNav() {
   const logout = () => {
     localStorage.removeItem('idc_token');
     setCurrentUser(null);
-    router.replace('/auth/login');
+    router.replace(toLocaleRoute('/auth/login', locale));
     router.refresh();
   };
 
@@ -149,7 +150,7 @@ export default function TopNav() {
     return currentUser.role === 'ADMIN' ? '管理员' : '认证用户';
   }, [currentUser]);
 
-  const isEn = locale.startsWith('en');
+  const isEn = locale.startsWith('en') || hasEnPrefix(pathname || '');
 
   const tr = (zh: string, en: string) => (isEn ? en : zh);
   const navRoleLabel = isEn
@@ -166,6 +167,8 @@ export default function TopNav() {
     求购市场: 'Wanted',
     议价中心: 'Bargain',
     担保流程: 'Escrow',
+    公告中心: 'Announcements',
+    交易规则: 'Rules',
     卖家看板: 'Seller Dashboard',
     店铺资料: 'Store Profile',
     开放接口: 'Open API',
@@ -178,6 +181,7 @@ export default function TopNav() {
     我的求购: 'My Wanted',
     我的议价: 'My Bargains',
     钱包与结算: 'Wallet',
+    售后工单: 'Support Tickets',
     浏览历史: 'History',
     价格提醒: 'Price Alerts',
     通知中心: 'Notices',
@@ -189,11 +193,14 @@ export default function TopNav() {
     议价管理: 'Bargains',
     寄售审核: 'Consignment',
     支付监控: 'Payments',
+    财务报表: 'Finance',
     支付对账: 'Reconcile',
     退款审核: 'Refunds',
     纠纷仲裁: 'Disputes',
     提现审核: 'Withdrawals',
     风控策略: 'Risk',
+    登录安全: 'Login Security',
+    规则协议: 'Rules & Agreement',
     开放接口监控: 'Open API Monitor',
     通知管理: 'Notice Admin',
     内容运营: 'Content',
@@ -201,11 +208,17 @@ export default function TopNav() {
   };
 
   const showLabel = (label: string) => (isEn ? (labelMap[label] || label) : label);
+  const localize = (href: string) => toLocaleHref(href, locale);
+  const isPathActive = (href: string) => {
+    const current = pathname || '/';
+    const normalizedCurrent = hasEnPrefix(current) ? current.slice(3) || '/' : current;
+    return normalizedCurrent === href;
+  };
 
   return (
     <nav className="topbar">
       <div className="topbar-inner">
-        <Link href="/" className="logo">
+        <Link href={localize('/')} className="logo">
           <span className="logo-mark" aria-hidden="true" />
           {tr('IDC 服务器担保交易', 'IDC Server Escrow')}
         </Link>
@@ -214,8 +227,8 @@ export default function TopNav() {
           {MAIN_LINKS.map((item) => (
             <Link
               key={String(item.href)}
-              href={item.href}
-              className={`nav-link${pathname === item.href ? ' active' : ''}`}
+              href={localize(item.href)}
+              className={`nav-link${isPathActive(item.href) ? ' active' : ''}`}
             >
               {showLabel(item.label)}
             </Link>
@@ -225,12 +238,13 @@ export default function TopNav() {
         <div className="nav-links">
           {ready && currentUser ? (
             <>
-              <NavGroup label={tr('买家中心', 'Buyer')} links={BUYER_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))} />
-              <NavGroup label={tr('卖家中心', 'Seller')} links={SELLER_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))} />
+              <NavGroup label={tr('买家中心', 'Buyer')} links={BUYER_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))} locale={locale} />
+              <NavGroup label={tr('卖家中心', 'Seller')} links={SELLER_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))} locale={locale} />
               {currentUser.role === 'ADMIN' && (
                 <NavGroup
                   label={tr('管理后台', 'Admin')}
                   links={ADMIN_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))}
+                  locale={locale}
                 />
               )}
               <LocaleSwitch />
@@ -241,8 +255,8 @@ export default function TopNav() {
             </>
           ) : (
             <>
-              <Link href="/auth/login">{tr('登录', 'Login')}</Link>
-              <Link href="/auth/register">{tr('注册', 'Sign up')}</Link>
+              <Link href={localize('/auth/login')}>{tr('登录', 'Login')}</Link>
+              <Link href={localize('/auth/register')}>{tr('注册', 'Sign up')}</Link>
             </>
           )}
         </div>
@@ -261,7 +275,7 @@ export default function TopNav() {
         <div className="nav-mobile-block">
           <p className="nav-mobile-block-title">{tr('平台导航', 'Navigation')}</p>
           {MAIN_LINKS.map((item) => (
-            <Link key={String(item.href)} href={item.href}>
+            <Link key={String(item.href)} href={localize(item.href)}>
               {showLabel(item.label)}
             </Link>
           ))}
@@ -272,7 +286,7 @@ export default function TopNav() {
             <div className="nav-mobile-block">
               <p className="nav-mobile-block-title">{tr('买家中心', 'Buyer')}</p>
               {BUYER_LINKS.map((item) => (
-                <Link key={String(item.href)} href={item.href}>
+                <Link key={String(item.href)} href={localize(item.href)}>
                   {showLabel(item.label)}
                 </Link>
               ))}
@@ -280,7 +294,7 @@ export default function TopNav() {
             <div className="nav-mobile-block">
               <p className="nav-mobile-block-title">{tr('卖家中心', 'Seller')}</p>
               {SELLER_LINKS.map((item) => (
-                <Link key={String(item.href)} href={item.href}>
+                <Link key={String(item.href)} href={localize(item.href)}>
                   {showLabel(item.label)}
                 </Link>
               ))}
@@ -289,7 +303,7 @@ export default function TopNav() {
               <div className="nav-mobile-block">
                 <p className="nav-mobile-block-title">{tr('管理后台', 'Admin')}</p>
                 {ADMIN_LINKS.map((item) => (
-                  <Link key={String(item.href)} href={item.href}>
+                  <Link key={String(item.href)} href={localize(item.href)}>
                     {showLabel(item.label)}
                   </Link>
                 ))}
@@ -308,8 +322,8 @@ export default function TopNav() {
           <div className="nav-mobile-block">
             <p className="nav-mobile-block-title">{tr('账户', 'Account')}</p>
             <LocaleSwitch />
-            <Link href="/auth/login">{tr('登录', 'Login')}</Link>
-            <Link href="/auth/register">{tr('注册', 'Sign up')}</Link>
+            <Link href={localize('/auth/login')}>{tr('登录', 'Login')}</Link>
+            <Link href={localize('/auth/register')}>{tr('注册', 'Sign up')}</Link>
           </div>
         )}
       </div>

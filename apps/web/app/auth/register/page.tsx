@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '../../../lib/use-locale';
+import { toLocaleHref, toLocalePath } from '../../../lib/locale';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
 export default function RegisterPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,7 @@ export default function RegisterPage() {
         text: t('注册成功，正在进入交易市场...', 'Registration successful, redirecting to marketplace...')
       });
       const redirect = new URLSearchParams(window.location.search).get('redirect');
-      const nextPath = redirect && redirect.startsWith('/') ? redirect : '/products';
+      const nextPath = redirect && redirect.startsWith('/') ? redirect : toLocalePath('/products', locale);
       window.location.replace(nextPath);
     } catch (e: any) {
       setFeedback({
@@ -107,8 +108,8 @@ export default function RegisterPage() {
           </form>
 
           <div className="auth-links">
-            <Link href="/auth/login">{t('已有账号？去登录', 'Already have an account? Sign in')}</Link>
-            <Link href="/auth/verify-email">{t('注册后去验证邮箱', 'Verify email after registration')}</Link>
+            <Link href={toLocaleHref('/auth/login', locale)}>{t('已有账号？去登录', 'Already have an account? Sign in')}</Link>
+            <Link href={toLocaleHref('/auth/verify-email', locale)}>{t('注册后去验证邮箱', 'Verify email after registration')}</Link>
           </div>
 
           {feedback.text ? (

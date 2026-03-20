@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { toLocaleHref } from '../lib/locale';
+import { useLocale } from '../lib/use-locale';
 
 const API = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -29,6 +31,7 @@ export function BargainBox({
   listPrice: number;
   negotiable?: boolean;
 }) {
+  const { locale } = useLocale();
   const defaultPrice = useMemo(() => {
     const base = Number.isFinite(listPrice) && listPrice > 0 ? listPrice : 0;
     return Math.max(0.01, base * 0.9).toFixed(2);
@@ -135,7 +138,7 @@ export function BargainBox({
           <button type="submit" className="btn primary" disabled={loading || !negotiable}>
             {loading ? '提交中...' : '发起议价'}
           </button>
-          <Link className="btn secondary" href={bargainId ? `/bargains?id=${bargainId}` : '/bargains'}>
+          <Link className="btn secondary" href={toLocaleHref(bargainId ? `/bargains?id=${bargainId}` : '/bargains', locale)}>
             打开议价中心
           </Link>
         </div>

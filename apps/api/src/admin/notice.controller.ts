@@ -7,6 +7,7 @@ import { NoticeService } from '../notice/notice.service';
 import { AdminQueryNoticeDto } from '../notice/dto/admin-query-notice.dto';
 import { CreateAdminNoticeDto } from '../notice/dto/create-admin-notice.dto';
 import { CreateTemplateDto, UpdateTemplateDto } from '../notice/dto/template.dto';
+import { TestNoticeChannelDto } from '../notice/dto/test-notice-channel.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('admin/notices')
@@ -26,6 +27,19 @@ export class AdminNoticeController {
     @Body() dto: CreateAdminNoticeDto
   ) {
     return this.noticeService.createByAdmin(user.userId, dto);
+  }
+
+  @Get('channels')
+  channelHealth() {
+    return this.noticeService.getChannelHealth();
+  }
+
+  @Post('channels/test')
+  testChannel(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: TestNoticeChannelDto
+  ) {
+    return this.noticeService.sendChannelTest(user.userId, dto);
   }
 
   // ---- Template CRUD ----

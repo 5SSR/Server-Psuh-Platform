@@ -1,0 +1,2 @@
+ALTER TABLE `MarketTag`
+ADD COLUMN `linkUrl` VARCHAR(512) NULL;

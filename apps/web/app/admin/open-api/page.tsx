@@ -240,7 +240,7 @@ export default function AdminOpenApiPage() {
                     <td data-label="时间">{new Date(item.createdAt).toLocaleString('zh-CN')}</td>
                     <td data-label="状态">
                       <span className={`status-chip ${item.success ? 'success' : 'danger'}`}>
-                        {item.success ? 'SUCCESS' : 'FAILED'}
+                        {item.success ? '成功' : '失败'}
                       </span>
                     </td>
                     <td data-label="Key">{item.keyPrefix || '-'}</td>

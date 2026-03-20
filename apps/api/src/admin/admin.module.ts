@@ -23,10 +23,11 @@ import { AdminLogInterceptor } from './admin-log.interceptor';
 import { AdminPaymentReconcileController } from './payment-reconcile.controller';
 import { AdminRiskController } from './risk.controller';
 import { AdminBargainController } from './bargain.controller';
-
+import { AdminSecurityController } from './security.controller';
+import { AdminFinanceController } from './finance.controller';
 
 @Module({
-    imports: [OrderModule, WalletModule, NoticeModule, PaymentModule, RiskModule, BargainModule],
+  imports: [OrderModule, WalletModule, NoticeModule, PaymentModule, RiskModule, BargainModule],
   controllers: [
     ProductAuditController,
     AdminRefundController,
@@ -38,8 +39,10 @@ import { AdminBargainController } from './bargain.controller';
     AdminNoticeController,
     AdminPaymentController,
     AdminPaymentReconcileController,
-                                                    AdminRiskController,
+    AdminRiskController,
     AdminBargainController,
+    AdminFinanceController,
+    AdminSecurityController,
     AdminLogController
   ],
   providers: [

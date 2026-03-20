@@ -51,6 +51,38 @@ type RiskOverview = {
   }>;
 };
 
+const sceneLabel: Record<string, string> = {
+  WITHDRAW: '提现',
+  PAYMENT_CALLBACK: '支付回调',
+  LOGIN: '登录',
+  CREATE_ORDER: '创建订单',
+  CREATE_PRODUCT: '发布商品'
+};
+
+const actionLabel: Record<string, string> = {
+  REVIEW: '人工复核',
+  BLOCK: '拦截',
+  ALERT: '告警',
+  LIMIT: '限制',
+  ALLOW: '放行'
+};
+
+const listTypeLabel: Record<string, string> = {
+  BLACKLIST: '黑名单',
+  WHITELIST: '白名单',
+  WATCHLIST: '观察名单'
+};
+
+const entityTypeLabel: Record<string, string> = {
+  USER_ID: '用户 ID',
+  IP: 'IP',
+  EMAIL: '邮箱'
+};
+
+function label(value: string, map: Record<string, string>) {
+  return map[value] || value;
+}
+
 export default function AdminRiskPage() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
   const [rules, setRules] = useState<Rule[]>([]);
@@ -321,7 +353,7 @@ export default function AdminRiskPage() {
               <p className="muted">动作分布</p>
               {(overview.actionDistribution || []).map((item) => (
                 <p key={item.action} className="muted">
-                  {item.action}: {item.count}
+                  {label(item.action, actionLabel)}: {item.count}
                 </p>
               ))}
             </article>
@@ -329,7 +361,7 @@ export default function AdminRiskPage() {
               <p className="muted">场景分布</p>
               {(overview.sceneDistribution || []).map((item) => (
                 <p key={item.scene} className="muted">
-                  {item.scene}: {item.count}
+                  {label(item.scene, sceneLabel)}: {item.count}
                 </p>
               ))}
             </article>
@@ -369,7 +401,7 @@ export default function AdminRiskPage() {
           </button>
         </div>
         <p className="muted">
-          评分规则：BLOCK=6，REVIEW=4，LIMIT=3，ALERT=2。超过阈值将自动加入 WATCHLIST。
+          评分规则：拦截=6，人工复核=4，限制=3，告警=2。超过阈值将自动加入观察名单。
         </p>
         {overview?.topRiskUsers?.length ? (
           <div className="cards">
@@ -379,8 +411,7 @@ export default function AdminRiskPage() {
                   <strong>{item.userId}</strong>
                 </p>
                 <p className="muted">
-                  评分 {item.score} · 命中 {item.hitCount} · BLOCK {item.blockCount} · REVIEW{' '}
-                  {item.reviewCount}
+                  评分 {item.score} · 命中 {item.hitCount} · 拦截 {item.blockCount} · 人工复核 {item.reviewCount}
                 </p>
               </article>
             ))}
@@ -396,16 +427,17 @@ export default function AdminRiskPage() {
           <input placeholder="规则编码" value={ruleForm.code} onChange={(e) => setRuleForm({ ...ruleForm, code: e.target.value })} />
           <input placeholder="规则名称" value={ruleForm.name} onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })} />
           <select value={ruleForm.scene} onChange={(e) => setRuleForm({ ...ruleForm, scene: e.target.value })}>
-            <option value="WITHDRAW">WITHDRAW</option>
-            <option value="PAYMENT_CALLBACK">PAYMENT_CALLBACK</option>
-            <option value="LOGIN">LOGIN</option>
-            <option value="CREATE_ORDER">CREATE_ORDER</option>
+            <option value="WITHDRAW">提现</option>
+            <option value="PAYMENT_CALLBACK">支付回调</option>
+            <option value="LOGIN">登录</option>
+            <option value="CREATE_ORDER">创建订单</option>
+            <option value="CREATE_PRODUCT">发布商品</option>
           </select>
           <select value={ruleForm.action} onChange={(e) => setRuleForm({ ...ruleForm, action: e.target.value })}>
-            <option value="REVIEW">REVIEW</option>
-            <option value="BLOCK">BLOCK</option>
-            <option value="ALERT">ALERT</option>
-            <option value="LIMIT">LIMIT</option>
+            <option value="REVIEW">人工复核</option>
+            <option value="BLOCK">拦截</option>
+            <option value="ALERT">告警</option>
+            <option value="LIMIT">限制</option>
           </select>
           <input type="number" placeholder="优先级" value={ruleForm.priority} onChange={(e) => setRuleForm({ ...ruleForm, priority: Number(e.target.value) })} />
           <input type="number" placeholder="金额阈值" value={ruleForm.amount} onChange={(e) => setRuleForm({ ...ruleForm, amount: Number(e.target.value) })} />
@@ -422,7 +454,7 @@ export default function AdminRiskPage() {
           {rules.map((rule) => (
             <article key={rule.id} className="card">
               <p><strong>{rule.code}</strong> / {rule.name}</p>
-              <p className="muted">场景：{rule.scene}，动作：{rule.action}</p>
+              <p className="muted">场景：{label(rule.scene, sceneLabel)}，动作：{label(rule.action, actionLabel)}</p>
               <p className="muted">优先级：{rule.priority}，状态：{rule.enabled ? '启用' : '停用'}</p>
               <p className="muted">说明：{rule.reason || '-'}</p>
               <button className="secondary" onClick={() => toggleRule(rule)}>
@@ -437,13 +469,13 @@ export default function AdminRiskPage() {
         <h3>黑白名单</h3>
         <div className="detail-grid">
           <select value={entityForm.listType} onChange={(e) => setEntityForm({ ...entityForm, listType: e.target.value })}>
-            <option value="BLACKLIST">BLACKLIST</option>
-            <option value="WHITELIST">WHITELIST</option>
+            <option value="BLACKLIST">黑名单</option>
+            <option value="WHITELIST">白名单</option>
           </select>
           <select value={entityForm.entityType} onChange={(e) => setEntityForm({ ...entityForm, entityType: e.target.value })}>
-            <option value="USER_ID">USER_ID</option>
+            <option value="USER_ID">用户 ID</option>
             <option value="IP">IP</option>
-            <option value="EMAIL">EMAIL</option>
+            <option value="EMAIL">邮箱</option>
           </select>
           <input placeholder="值" value={entityForm.entityValue} onChange={(e) => setEntityForm({ ...entityForm, entityValue: e.target.value })} />
           <input placeholder="原因" value={entityForm.reason} onChange={(e) => setEntityForm({ ...entityForm, reason: e.target.value })} />
@@ -484,7 +516,7 @@ export default function AdminRiskPage() {
         <div className="cards" style={{ marginTop: '1rem' }}>
           {entities.map((entity) => (
             <article key={entity.id} className="card">
-              <p><strong>{entity.listType}</strong> / {entity.entityType}</p>
+              <p><strong>{label(entity.listType, listTypeLabel)}</strong> / {label(entity.entityType, entityTypeLabel)}</p>
               <p className="muted">{entity.entityValue}</p>
               <p className="muted">状态：{entity.enabled ? '启用' : '停用'}，原因：{entity.reason || '-'}</p>
             </article>
@@ -498,7 +530,7 @@ export default function AdminRiskPage() {
           <div className="cards">
             {hits.map((hit) => (
               <article key={hit.id} className="card">
-                <p><strong>{hit.scene}</strong> / {hit.action}</p>
+                <p><strong>{label(hit.scene, sceneLabel)}</strong> / {label(hit.action, actionLabel)}</p>
                 <p className="muted">用户：{hit.userId || '-'}</p>
                 <p className="muted">IP：{hit.ip || '-'}</p>
                 <p className="muted">原因：{hit.decisionReason || '-'}</p>

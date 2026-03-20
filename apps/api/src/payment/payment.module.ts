@@ -9,6 +9,7 @@ import { PaymentWebhookService } from './payment.webhook.service';
 import { PaymentService } from './payment.service';
 import { PaymentUserController } from './payment.user.controller';
 import { ReconciliationService } from './reconciliation.service';
+import { PaymentRefundService } from './payment-refund.service';
 import { AlipayGateway } from './gateways/alipay.gateway';
 import { WechatGateway } from './gateways/wechat.gateway';
 import { UsdtGateway } from './gateways/usdt.gateway';
@@ -20,11 +21,12 @@ import { UsdtGateway } from './gateways/usdt.gateway';
   providers: [
     PaymentWebhookService,
     PaymentService,
+    PaymentRefundService,
     ReconciliationService,
     AlipayGateway,
     WechatGateway,
     UsdtGateway
   ],
-  exports: [PaymentService, ReconciliationService]
+  exports: [PaymentService, PaymentRefundService, ReconciliationService]
 })
 export class PaymentModule {}

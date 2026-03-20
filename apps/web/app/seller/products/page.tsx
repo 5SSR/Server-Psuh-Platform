@@ -25,6 +25,8 @@ type Product = {
   ipCount?: number | null;
   ddos?: number | null;
   salePrice: number | string;
+  purchasePrice?: number | string | null;
+  minAcceptPrice?: number | string | null;
   renewPrice?: number | string | null;
   expireAt?: string | null;
   deliveryType: string;
@@ -71,6 +73,8 @@ type ProductForm = {
   ipCount: string;
   ddos: string;
   salePrice: string;
+  purchasePrice: string;
+  minAcceptPrice: string;
   renewPrice: string;
   expireAt: string;
   deliveryType: string;
@@ -87,6 +91,7 @@ type ProductForm = {
   description: string;
   billImages: string;
   panelImages: string;
+  benchmarkImages: string;
   otherImages: string;
 };
 
@@ -122,6 +127,8 @@ const defaultForm: ProductForm = {
   ipCount: '',
   ddos: '',
   salePrice: '100',
+  purchasePrice: '',
+  minAcceptPrice: '',
   renewPrice: '',
   expireAt: '',
   deliveryType: 'FULL_ACCOUNT',
@@ -138,6 +145,7 @@ const defaultForm: ProductForm = {
   description: '',
   billImages: '',
   panelImages: '',
+  benchmarkImages: '',
   otherImages: ''
 };
 
@@ -181,6 +189,8 @@ function toPayload(form: ProductForm) {
     ipCount: toNumber(form.ipCount),
     ddos: toNumber(form.ddos),
     salePrice: Number(form.salePrice) || 0,
+    purchasePrice: toNumber(form.purchasePrice),
+    minAcceptPrice: toNumber(form.minAcceptPrice),
     renewPrice: toNumber(form.renewPrice),
     expireAt: form.expireAt || undefined,
     deliveryType: form.deliveryType,
@@ -217,6 +227,8 @@ function fromProduct(product: Product): ProductForm {
     ipCount: product.ipCount ? String(product.ipCount) : '',
     ddos: product.ddos ? String(product.ddos) : '',
     salePrice: String(product.salePrice ?? ''),
+    purchasePrice: product.purchasePrice ? String(product.purchasePrice) : '',
+    minAcceptPrice: product.minAcceptPrice ? String(product.minAcceptPrice) : '',
     renewPrice: product.renewPrice ? String(product.renewPrice) : '',
     expireAt: product.expireAt ? product.expireAt.slice(0, 10) : '',
     deliveryType: product.deliveryType || 'FULL_ACCOUNT',
@@ -233,6 +245,7 @@ function fromProduct(product: Product): ProductForm {
     description: product.description || '',
     billImages: '',
     panelImages: '',
+    benchmarkImages: '',
     otherImages: ''
   };
 }
@@ -241,7 +254,7 @@ async function uploadImages(
   token: string,
   productId: string,
   raw: string,
-  type: 'BILL' | 'PANEL' | 'OTHER'
+  type: 'BILL' | 'PANEL' | 'BENCHMARK' | 'OTHER'
 ) {
   const urls = splitUrls(raw);
   if (!urls.length) return;
@@ -414,6 +427,7 @@ export default function SellerProductsPage() {
 
       await uploadImages(token, data.id, form.billImages, 'BILL');
       await uploadImages(token, data.id, form.panelImages, 'PANEL');
+      await uploadImages(token, data.id, form.benchmarkImages, 'BENCHMARK');
       await uploadImages(token, data.id, form.otherImages, 'OTHER');
 
       setMessage('商品创建成功，已保存为待审核状态，可继续补充或提交审核。');
@@ -546,6 +560,7 @@ export default function SellerProductsPage() {
 
       await uploadImages(token, editingId, editForm.billImages, 'BILL');
       await uploadImages(token, editingId, editForm.panelImages, 'PANEL');
+      await uploadImages(token, editingId, editForm.benchmarkImages, 'BENCHMARK');
       await uploadImages(token, editingId, editForm.otherImages, 'OTHER');
 
       setMessage('商品已更新，可重新提交审核。');
@@ -759,6 +774,14 @@ export default function SellerProductsPage() {
               <input type="number" value={form.salePrice} onChange={(e) => updateFormValue('salePrice', e.target.value)} />
             </div>
             <div className="field third">
+              <label>原购入价（元）</label>
+              <input type="number" value={form.purchasePrice} onChange={(e) => updateFormValue('purchasePrice', e.target.value)} />
+            </div>
+            <div className="field third">
+              <label>最低接受价（元）</label>
+              <input type="number" value={form.minAcceptPrice} onChange={(e) => updateFormValue('minAcceptPrice', e.target.value)} />
+            </div>
+            <div className="field third">
               <label>续费参考价（元）</label>
               <input type="number" value={form.renewPrice} onChange={(e) => updateFormValue('renewPrice', e.target.value)} />
             </div>
@@ -840,6 +863,14 @@ export default function SellerProductsPage() {
               <textarea rows={2} value={form.panelImages} onChange={(e) => updateFormValue('panelImages', e.target.value)} />
             </div>
             <div className="field full">
+              <label>性能测试截图（BENCHMARK）</label>
+              <textarea
+                rows={2}
+                value={form.benchmarkImages}
+                onChange={(e) => updateFormValue('benchmarkImages', e.target.value)}
+              />
+            </div>
+            <div className="field full">
               <label>其他材料（OTHER）</label>
               <textarea rows={2} value={form.otherImages} onChange={(e) => updateFormValue('otherImages', e.target.value)} />
             </div>
@@ -894,6 +925,18 @@ export default function SellerProductsPage() {
                   <div className="spec-item">
                     <p className="label">售价</p>
                     <p className="value">¥{Number(item.salePrice).toFixed(2)}</p>
+                  </div>
+                  <div className="spec-item">
+                    <p className="label">原购入价</p>
+                    <p className="value">
+                      {item.purchasePrice ? `¥${Number(item.purchasePrice).toFixed(2)}` : '-'}
+                    </p>
+                  </div>
+                  <div className="spec-item">
+                    <p className="label">最低接受价</p>
+                    <p className="value">
+                      {item.minAcceptPrice ? `¥${Number(item.minAcceptPrice).toFixed(2)}` : '-'}
+                    </p>
                   </div>
                   <div className="spec-item">
                     <p className="label">交付方式</p>
@@ -1011,6 +1054,22 @@ export default function SellerProductsPage() {
                           onChange={(e) => updateEditFormValue('salePrice', e.target.value)}
                         />
                       </div>
+                      <div className="field third">
+                        <label>原购入价</label>
+                        <input
+                          type="number"
+                          value={editForm.purchasePrice}
+                          onChange={(e) => updateEditFormValue('purchasePrice', e.target.value)}
+                        />
+                      </div>
+                      <div className="field third">
+                        <label>最低接受价</label>
+                        <input
+                          type="number"
+                          value={editForm.minAcceptPrice}
+                          onChange={(e) => updateEditFormValue('minAcceptPrice', e.target.value)}
+                        />
+                      </div>
                       <div className="field half">
                         <label>线路</label>
                         <input value={editForm.lineType} onChange={(e) => updateEditFormValue('lineType', e.target.value)} />
@@ -1058,6 +1117,42 @@ export default function SellerProductsPage() {
                           rows={3}
                           value={editForm.description}
                           onChange={(e) => updateEditFormValue('description', e.target.value)}
+                        />
+                      </div>
+                      <div className="field full">
+                        <label>账单凭证链接（BILL）</label>
+                        <textarea
+                          rows={2}
+                          value={editForm.billImages}
+                          onChange={(e) => updateEditFormValue('billImages', e.target.value)}
+                          placeholder="多个链接用逗号或换行分隔"
+                        />
+                      </div>
+                      <div className="field full">
+                        <label>面板截图链接（PANEL）</label>
+                        <textarea
+                          rows={2}
+                          value={editForm.panelImages}
+                          onChange={(e) => updateEditFormValue('panelImages', e.target.value)}
+                          placeholder="多个链接用逗号或换行分隔"
+                        />
+                      </div>
+                      <div className="field full">
+                        <label>性能测试截图（BENCHMARK）</label>
+                        <textarea
+                          rows={2}
+                          value={editForm.benchmarkImages}
+                          onChange={(e) => updateEditFormValue('benchmarkImages', e.target.value)}
+                          placeholder="多个链接用逗号或换行分隔"
+                        />
+                      </div>
+                      <div className="field full">
+                        <label>其他材料链接（OTHER）</label>
+                        <textarea
+                          rows={2}
+                          value={editForm.otherImages}
+                          onChange={(e) => updateEditFormValue('otherImages', e.target.value)}
+                          placeholder="多个链接用逗号或换行分隔"
                         />
                       </div>
                     </div>

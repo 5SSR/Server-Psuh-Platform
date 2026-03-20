@@ -82,6 +82,16 @@ export class AdminUserManagementController {
               updatedAt: true
             }
           },
+          sellerProfile: {
+            select: {
+              level: true,
+              tradeCount: true,
+              disputeRate: true,
+              refundRate: true,
+              avgDeliveryMinutes: true,
+              positiveRate: true
+            }
+          },
           wallet: {
             select: {
               balance: true,
@@ -96,11 +106,81 @@ export class AdminUserManagementController {
       })
     ]);
 
+    const userIds = list.map((item) => item.id);
+    const emails = list.map((item) => item.email);
+    const emailToUserId = new Map(list.map((item) => [item.email, item.id]));
+
+    const riskEntities =
+      userIds.length === 0
+        ? []
+        : await this.prisma.riskEntityList.findMany({
+            where: {
+              enabled: true,
+              OR: [
+                {
+                  entityType: 'USER_ID',
+                  entityValue: {
+                    in: userIds
+                  }
+                },
+                {
+                  entityType: 'EMAIL',
+                  entityValue: {
+                    in: emails
+                  }
+                }
+              ]
+            },
+            select: {
+              id: true,
+              listType: true,
+              entityType: true,
+              entityValue: true,
+              reason: true,
+              expiresAt: true,
+              createdAt: true
+            }
+          });
+
+    const riskByUserId = new Map<
+      string,
+      Array<{
+        id: string;
+        listType: string;
+        entityType: string;
+        entityValue: string;
+        reason: string | null;
+        expiresAt: Date | null;
+        createdAt: Date;
+      }>
+    >();
+
+    for (const item of riskEntities) {
+      const userId =
+        item.entityType === 'USER_ID' ? item.entityValue : emailToUserId.get(item.entityValue);
+      if (!userId) continue;
+      const current = riskByUserId.get(userId) || [];
+      current.push(item);
+      riskByUserId.set(userId, current);
+    }
+
     return {
       total,
       list: list.map((item) => ({
         ...item,
-        role: this.presentRole(item.role)
+        role: this.presentRole(item.role),
+        riskMarks: Array.from(
+          new Set((riskByUserId.get(item.id) || []).map((risk) => risk.listType))
+        ),
+        riskEntities: (riskByUserId.get(item.id) || []).map((risk) => ({
+          id: risk.id,
+          listType: risk.listType,
+          entityType: risk.entityType,
+          entityValue: risk.entityValue,
+          reason: risk.reason,
+          expiresAt: risk.expiresAt,
+          createdAt: risk.createdAt
+        }))
       })),
       page,
       pageSize

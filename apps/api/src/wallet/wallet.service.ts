@@ -380,6 +380,7 @@ export class WalletService {
     const [
       releasedTradeCount,
       disputeCount,
+      refundApprovedCount,
       deliveredOrders,
       reviewTotalCount,
       reviewPositiveCount
@@ -392,6 +393,12 @@ export class WalletService {
       }),
       executor.dispute.count({
         where: {
+          order: { sellerId }
+        }
+      }),
+      executor.refund.count({
+        where: {
+          status: 'APPROVED',
           order: { sellerId }
         }
       }),
@@ -445,10 +452,14 @@ export class WalletService {
       releasedTradeCount === 0
         ? 0
         : this.clampRatio(disputeCount / releasedTradeCount);
+    const refundRate =
+      releasedTradeCount === 0
+        ? 0
+        : this.clampRatio(refundApprovedCount / releasedTradeCount);
     const positiveRate =
       reviewTotalCount > 0
         ? this.clampRatio(reviewPositiveCount / reviewTotalCount)
-        : this.clampRatio(1 - disputeRate);
+        : this.clampRatio(1 - Math.max(disputeRate, refundRate));
     const level = this.calcLevelByTradeCount(releasedTradeCount);
 
     const profile = await executor.sellerProfile.upsert({
@@ -457,6 +468,7 @@ export class WalletService {
         level,
         tradeCount: releasedTradeCount,
         disputeRate,
+        refundRate,
         avgDeliveryMinutes,
         positiveRate
       },
@@ -465,6 +477,7 @@ export class WalletService {
         level,
         tradeCount: releasedTradeCount,
         disputeRate,
+        refundRate,
         avgDeliveryMinutes,
         positiveRate
       }
@@ -800,7 +813,13 @@ export class WalletService {
     });
   }
 
-  async refundToBuyer(orderId: string) {
+  async refundToBuyer(
+    orderId: string,
+    options?: {
+      memoOverride?: string;
+      memoForNonBalance?: string;
+    }
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new Error('订单不存在');
@@ -841,7 +860,11 @@ export class WalletService {
           amount: refundAmount,
           refType: 'order',
           refId: orderId,
-          memo: isBalanceEscrow ? '退款入账（托管退回）' : '退款入账（非余额支付退回余额）'
+          memo:
+            options?.memoOverride ||
+            (isBalanceEscrow
+              ? '退款入账（托管退回）'
+              : options?.memoForNonBalance || '退款入账（非余额支付退回余额）')
         }
       });
     });

@@ -46,6 +46,9 @@ export class PaymentService {
     if (order.status !== OrderStatus.PENDING_PAYMENT) {
       throw new BadRequestException('当前状态不可支付');
     }
+    if (order.riskReviewRequired && order.riskReviewPassed !== true) {
+      throw new BadRequestException('订单待风控审核，暂不可支付');
+    }
     if (order.payStatus === PayStatus.PAID) {
       return { alreadyPaid: true, orderId, payStatus: order.payStatus };
     }

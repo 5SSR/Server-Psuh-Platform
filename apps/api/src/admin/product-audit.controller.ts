@@ -16,6 +16,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AdminQueryDto } from './dto/admin-query.dto';
 import { AdminProductMarketQueryDto } from './dto/admin-product-market-query.dto';
 import { UpdateProductMarketDto } from './dto/update-product-market.dto';
+import { UpdateAdminProductDto } from './dto/update-admin-product.dto';
 
 interface AuditDto {
   status: ProductAuditStatus;
@@ -79,6 +80,7 @@ export class ProductAuditController {
                     level: true,
                     tradeCount: true,
                     disputeRate: true,
+                    refundRate: true,
                     positiveRate: true
                   }
                 }
@@ -134,6 +136,7 @@ export class ProductAuditController {
                   level: true,
                   tradeCount: true,
                   disputeRate: true,
+                  refundRate: true,
                   positiveRate: true
                 }
               }
@@ -224,6 +227,93 @@ export class ProductAuditController {
 
     return {
       message: '商品运营配置已更新',
+      data: updated
+    };
+  }
+
+  @Patch(':id')
+  @Roles('ADMIN')
+  async updateProductByAdmin(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminProductDto
+  ) {
+    const exists = await this.prisma.product.findUnique({
+      where: { id },
+      select: { id: true }
+    });
+    if (!exists) return { message: '商品不存在' };
+
+    const data: Prisma.ProductUpdateInput = {
+      ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+      ...(dto.category !== undefined ? { category: dto.category } : {}),
+      ...(dto.region !== undefined ? { region: dto.region.trim() } : {}),
+      ...(dto.datacenter !== undefined ? { datacenter: dto.datacenter?.trim() || null } : {}),
+      ...(dto.lineType !== undefined ? { lineType: dto.lineType?.trim() || null } : {}),
+      ...(dto.providerName !== undefined ? { providerName: dto.providerName?.trim() || null } : {}),
+      ...(dto.providerUrl !== undefined ? { providerUrl: dto.providerUrl?.trim() || null } : {}),
+      ...(dto.cpuModel !== undefined ? { cpuModel: dto.cpuModel?.trim() || null } : {}),
+      ...(dto.cpuCores !== undefined ? { cpuCores: dto.cpuCores } : {}),
+      ...(dto.memoryGb !== undefined ? { memoryGb: dto.memoryGb } : {}),
+      ...(dto.diskGb !== undefined ? { diskGb: dto.diskGb } : {}),
+      ...(dto.diskType !== undefined ? { diskType: dto.diskType?.trim() || null } : {}),
+      ...(dto.bandwidthMbps !== undefined ? { bandwidthMbps: dto.bandwidthMbps } : {}),
+      ...(dto.trafficLimit !== undefined ? { trafficLimit: dto.trafficLimit } : {}),
+      ...(dto.ipCount !== undefined ? { ipCount: dto.ipCount } : {}),
+      ...(dto.ddos !== undefined ? { ddos: dto.ddos } : {}),
+      ...(dto.salePrice !== undefined ? { salePrice: new Prisma.Decimal(dto.salePrice) } : {}),
+      ...(dto.purchasePrice !== undefined
+        ? { purchasePrice: dto.purchasePrice === null ? null : new Prisma.Decimal(dto.purchasePrice) }
+        : {}),
+      ...(dto.minAcceptPrice !== undefined
+        ? {
+            minAcceptPrice:
+              dto.minAcceptPrice === null ? null : new Prisma.Decimal(dto.minAcceptPrice)
+          }
+        : {}),
+      ...(dto.renewPrice !== undefined
+        ? { renewPrice: dto.renewPrice === null ? null : new Prisma.Decimal(dto.renewPrice) }
+        : {}),
+      ...(dto.expireAt !== undefined ? { expireAt: dto.expireAt ? new Date(dto.expireAt) : null } : {}),
+      ...(dto.negotiable !== undefined ? { negotiable: dto.negotiable } : {}),
+      ...(dto.consignment !== undefined ? { consignment: dto.consignment } : {}),
+      ...(dto.deliveryType !== undefined ? { deliveryType: dto.deliveryType } : {}),
+      ...(dto.feePayer !== undefined ? { feePayer: dto.feePayer } : {}),
+      ...(dto.canChangeEmail !== undefined ? { canChangeEmail: dto.canChangeEmail } : {}),
+      ...(dto.canChangeRealname !== undefined ? { canChangeRealname: dto.canChangeRealname } : {}),
+      ...(dto.canTest !== undefined ? { canTest: dto.canTest } : {}),
+      ...(dto.canTransfer !== undefined ? { canTransfer: dto.canTransfer } : {}),
+      ...(dto.riskLevel !== undefined ? { riskLevel: dto.riskLevel } : {}),
+      ...(dto.riskTags !== undefined ? { riskTags: dto.riskTags } : {}),
+      ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
+      ...(dto.isPremium !== undefined ? { isPremium: dto.isPremium } : {}),
+      ...(dto.premiumRate !== undefined ? { premiumRate: new Prisma.Decimal(dto.premiumRate) } : {}),
+      ...(dto.status !== undefined ? { status: dto.status } : {}),
+      ...(dto.abuseHistory !== undefined ? { abuseHistory: dto.abuseHistory } : {}),
+      ...(dto.accountRecallRisk !== undefined ? { accountRecallRisk: dto.accountRecallRisk } : {})
+    };
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data
+    });
+
+    await this.prisma.productAudit.create({
+      data: {
+        productId: id,
+        adminId: user.userId,
+        status: ProductAuditStatus.APPROVED,
+        reason: '管理员更新商品核心字段',
+        snapshot: {
+          action: 'ADMIN_PRODUCT_UPDATE',
+          adminId: user.userId,
+          updatedAt: new Date().toISOString()
+        }
+      }
+    });
+
+    return {
+      message: '商品核心信息已更新',
       data: updated
     };
   }

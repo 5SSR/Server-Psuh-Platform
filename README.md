@@ -9,6 +9,7 @@
 
 ### 1) 前台交易端
 - 首页、交易市场、担保流程、帮助中心、公告中心
+- 公开公告列表/详情（游客可访问，支持置顶与时间窗）
 - 商品列表与详情（配置参数、线路、地区、价格、状态标签）
 - 求购市场（发布求购、卖家报价、买家处理）
 - 议价中心（发起议价、还价、接受/拒绝、会话流转）
@@ -23,6 +24,7 @@
 ### 3) 交易与担保闭环
 - 下单、支付发起、支付状态查询
 - 卖家交付、平台核验、买家确认
+- 寄售订单平台代交付（后台触发，写入订单日志）
 - 订单时间线与状态流转
 - 退款申请、纠纷申请、证据补充
 - 结算放款与手续费策略（固定/比例/阶梯）
@@ -41,9 +43,10 @@
 
 ### 6) 管理后台（控制台风格）
 - `admin/dashboard` 运营总览
-- `admin/products` 商品审核 + 运营池管理
-- `admin/orders` 订单核验与处置
+- `admin/products` 商品审核 + 运营池管理 + 核心字段编辑（配置/交付/风险）
+- `admin/orders` 订单核验与处置（含寄售平台代交付）
 - `admin/payments` 支付监控/诊断/费率配置
+- `admin/finance` 财务总览 + CSV 导出（订单/结算/退款/提现）
 - `admin/refunds` 退款审核
 - `admin/disputes` 纠纷仲裁
 - `admin/withdrawals` 提现审核
@@ -53,6 +56,7 @@
 - `admin/risk` 风控规则、命中、名单同步
 - `admin/reconcile` 对账任务与差异处理
 - `admin/logs` 审计日志
+- `admin/content` Banner/FAQ/帮助文档/标签/公开公告运营
 
 ---
 
@@ -88,6 +92,24 @@ pnpm dev
 - Web：`http://localhost:3001`
 - API：`http://localhost:4000/api/v1`
 - Swagger：`http://localhost:4000/api/docs`
+
+### 4. 国际化路由（新增）
+- 中文主路径：`/products`、`/orders`、`/admin/*`
+- 英文镜像路径：`/en/products`、`/en/orders`、`/en/admin/*`
+- 语言切换策略：`pathname(/en)` 优先，其次 cookie(`idc_locale`)，最后 localStorage
+- 当 cookie 为 `en-US` 时，访问中文路径会自动 307 跳转到 `/en/*`
+
+### 5. 本轮新增关键接口（收口）
+- 公告：
+  - `GET /content/announcements`
+  - `GET /content/announcements/:id`
+  - `GET/POST/PATCH/DELETE /admin/content/announcements*`
+- 寄售平台代交付：
+  - `PATCH /admin/orders/:id/deliver`
+- 后台商品核心编辑：
+  - `PATCH /admin/products/:id`
+- 财务导出：
+  - `GET /admin/finance/export?type=orders|settlements|refunds|withdrawals&from=&to=&status=&channel=&format=csv`
 
 ---
 
@@ -128,11 +150,31 @@ pm2 save
 pm2 startup
 ```
 
+说明：
+- `@idc/api start` 已内置“启动前自动迁移检查”（执行 `prisma migrate deploy`）。
+- 如需临时跳过（不建议生产使用），可加环境变量：
+```bash
+SKIP_DB_AUTO_MIGRATE=true pnpm --filter @idc/api start
+```
+
 ### 5. 健康检查
 ```bash
 curl http://127.0.0.1:4000/api/v1/health
 curl -I http://127.0.0.1:3001
 pm2 status
+```
+
+### 6. 通知通道健康与测试（新增）
+```bash
+# 需管理员 token
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  http://127.0.0.1:4000/api/v1/admin/notices/channels
+
+curl -X POST \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"SMS","mobile":"13800138000"}' \
+  http://127.0.0.1:4000/api/v1/admin/notices/channels/test
 ```
 
 ---
@@ -170,6 +212,12 @@ pm2 status
 如果启动日志后手动按了 `Ctrl+C`，进程会退出，`curl` 自然失败。  
 生产环境请用 PM2 常驻，不要前台直接跑。
 
+如果日志包含“数据库迁移失败，API 启动已中止”，说明数据库结构落后于当前代码。  
+可执行：
+```bash
+pnpm --filter @idc/api prisma:migrate -- --name init
+```
+
 ### 3) `pnpm: command not found`
 ```bash
 corepack enable
@@ -186,6 +234,11 @@ corepack prepare pnpm@9.0.0 --activate
 - 提现：`WITHDRAW_*`
 - 支付回调：`PAY_WEBHOOK_SECRET_*`、`PAY_WEBHOOK_MAX_SKEW`
 - 前端：`NEXT_PUBLIC_API_BASE`
+- 通知通道模式：
+  - `NOTICE_CHANNEL_EMAIL_MODE=MOCK|REMOTE|DISABLED`
+  - `NOTICE_CHANNEL_TG_MODE=MOCK|REMOTE|DISABLED`
+  - `NOTICE_CHANNEL_SMS_MODE=MOCK|REMOTE|DISABLED`
+  - `NOTICE_CHANNEL_WECHAT_TEMPLATE_MODE=MOCK|REMOTE|DISABLED`
 
 完整示例见：[`.env.example`](./.env.example)
 

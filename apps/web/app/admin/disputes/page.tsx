@@ -362,8 +362,8 @@ export default function AdminDisputesPage() {
                         })
                       }
                     >
-                      <option value="RESOLVED">RESOLVED</option>
-                      <option value="REJECTED">REJECTED</option>
+                      <option value="RESOLVED">已解决</option>
+                      <option value="REJECTED">已驳回</option>
                     </select>
                   </div>
                   <div className="field">
@@ -376,8 +376,8 @@ export default function AdminDisputesPage() {
                         })
                       }
                     >
-                      <option value="REFUND">REFUND（退款买家）</option>
-                      <option value="RELEASE">RELEASE（放款卖家）</option>
+                      <option value="REFUND">退款买家</option>
+                      <option value="RELEASE">放款卖家</option>
                     </select>
                   </div>
                 </div>

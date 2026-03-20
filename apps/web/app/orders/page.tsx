@@ -12,6 +12,10 @@ type Order = {
   status: string;
   payStatus: string;
   payChannel: string;
+  riskAction?: string;
+  riskReviewRequired?: boolean;
+  riskReviewPassed?: boolean | null;
+  riskReviewRemark?: string | null;
   price: number;
   fee?: number;
   escrowAmount?: number;
@@ -553,6 +557,9 @@ export default function OrdersPage() {
               </span>
             </div>
             <p className="card-meta">支付状态：{order.payStatus} · 渠道：{order.payChannel}</p>
+            {order.riskReviewRequired && order.riskReviewPassed !== true ? (
+              <p className="card-meta">风控状态：平台审核中（通过后可继续支付）</p>
+            ) : null}
             <p className="price">¥{Number(order.price).toFixed(2)}</p>
             <p className="card-meta">
               服务费：¥{Number(order.fee || 0).toFixed(2)} · 托管金额：¥{Number(order.escrowAmount || order.price).toFixed(2)}
@@ -567,7 +574,10 @@ export default function OrdersPage() {
                 </Link>
               )}
               {order.status === 'PENDING_PAYMENT' && (
-                <button onClick={() => pay(order.id)} disabled={loading}>
+                <button
+                  onClick={() => pay(order.id)}
+                  disabled={loading || (order.riskReviewRequired && order.riskReviewPassed !== true)}
+                >
                   发起支付
                 </button>
               )}

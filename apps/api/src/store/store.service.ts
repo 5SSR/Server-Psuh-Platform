@@ -93,6 +93,7 @@ export class StoreService {
                 level: true,
                 tradeCount: true,
                 disputeRate: true,
+                refundRate: true,
                 avgDeliveryMinutes: true,
                 positiveRate: true
               }

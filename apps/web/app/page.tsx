@@ -28,6 +28,43 @@ function consignmentTone(status?: string) {
   return 'warning';
 }
 
+function buildTagEntryLink(tag: { type?: string; name: string; linkUrl?: string | null }) {
+  const customLink = (tag.linkUrl || '').trim();
+  if (customLink.startsWith('/')) return customLink;
+  if (/^https?:\/\//i.test(customLink)) return customLink;
+
+  const type = (tag.type || '').toUpperCase();
+  if (type === 'CATEGORY') {
+    return `/products?category=${encodeURIComponent(tag.name)}`;
+  }
+  if (type === 'REGION') {
+    return `/products?region=${encodeURIComponent(tag.name)}`;
+  }
+  if (type === 'LINE') {
+    return `/products?lineType=${encodeURIComponent(tag.name)}`;
+  }
+  return `/products?keyword=${encodeURIComponent(tag.name)}`;
+}
+
+function isExternalLink(href: string) {
+  return /^https?:\/\//i.test(href);
+}
+
+function StatusDot({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-block',
+        width: 10,
+        height: 10,
+        borderRadius: '50%',
+        background: color
+      }}
+    />
+  );
+}
+
 export default async function Home() {
   let content: Awaited<ReturnType<typeof api.homeContent>> | null = null;
   let latest: Awaited<ReturnType<typeof api.products>>['list'] = [];
@@ -55,6 +92,13 @@ export default async function Home() {
 
   const faqs = content?.faqs ?? [];
   const tags = content?.tags ?? [];
+  const announcements = content?.announcements ?? [];
+  const zoneEntries = tags
+    .filter((item) => {
+      const type = (item.type || '').toUpperCase();
+      return type === 'ZONE' || type === 'PROMOTION';
+    })
+    .slice(0, 8);
 
   return (
     <main className="page page-shell">
@@ -314,6 +358,83 @@ export default async function Home() {
             </div>
           </article>
         </div>
+      </section>
+
+      {zoneEntries.length > 0 && (
+        <section className="stack-16">
+          <div className="section-head">
+            <div>
+              <p className="eyebrow">专区入口</p>
+              <h2>运营专区与活动通道</h2>
+            </div>
+            <Link href="/products" className="btn secondary">
+              进入交易市场
+            </Link>
+          </div>
+          <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+            {zoneEntries.map((item) => {
+              const href = buildTagEntryLink(item);
+              const external = isExternalLink(href);
+              return (
+                <a
+                  key={item.id}
+                  href={href}
+                  className="card link stack-12"
+                  target={external ? '_blank' : undefined}
+                  rel={external ? 'noreferrer noopener' : undefined}
+                >
+                  <div className="card-header">
+                    <h3 style={{ fontSize: 16 }}>{item.name}</h3>
+                    <StatusDot color={item.color || '#2563eb'} />
+                  </div>
+                  <p className="muted">类型：{(item.type || 'PROMOTION').toUpperCase()}</p>
+                  <div className="status-line">
+                    <span className="status-chip info">专区筛选</span>
+                    <span className="status-chip success">担保交易</span>
+                    {external ? <span className="status-chip">外链</span> : null}
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="stack-16">
+        <div className="section-head">
+          <div>
+            <p className="eyebrow">平台公告</p>
+            <h2>最新公告与运营通知</h2>
+          </div>
+          <Link href="/announcements" className="btn secondary">
+            查看全部公告
+          </Link>
+        </div>
+        {announcements.length === 0 ? (
+          <div className="empty-state">暂无公告，平台发布后会在此处展示。</div>
+        ) : (
+          <div className="cards">
+            {announcements.slice(0, 4).map((item) => (
+              <article key={item.id} className="card stack-8">
+                <div className="status-line">
+                  {item.isPinned ? <span className="status-chip warning">置顶</span> : null}
+                  <span className="status-chip info">
+                    {item.publishedAt
+                      ? new Date(item.publishedAt).toLocaleDateString('zh-CN')
+                      : new Date(item.createdAt).toLocaleDateString('zh-CN')}
+                  </span>
+                </div>
+                <h3 style={{ fontSize: 16 }}>{item.title}</h3>
+                <p className="muted">{item.summary || item.content.slice(0, 120)}</p>
+                <div className="actions">
+                  <Link href={`/announcements/${item.id}`} className="btn ghost">
+                    阅读详情
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="stack-16">

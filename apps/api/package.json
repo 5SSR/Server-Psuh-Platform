@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
-    "start": "node dist/main.js",
+    "start": "node scripts/ensure-db-ready.js && node dist/main.js",
+    "start:raw": "node dist/main.js",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "prisma:generate": "node_modules/.bin/prisma generate --schema ./prisma/schema.prisma",
     "prisma:migrate": "node_modules/.bin/prisma migrate dev --schema ./prisma/schema.prisma",

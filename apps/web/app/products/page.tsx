@@ -11,6 +11,8 @@ interface Product {
   id: string;
   title: string;
   salePrice: number;
+  purchasePrice?: number | null;
+  minAcceptPrice?: number | null;
   category: string;
   region: string;
   lineType?: string | null;
@@ -21,12 +23,15 @@ interface Product {
   diskType?: string | null;
   bandwidthMbps?: number | null;
   trafficLimit?: number | null;
+  ipCount?: number | null;
+  ddos?: number | null;
   expireAt?: string | null;
   status?: string;
   deliveryType?: DeliveryType;
   feePayer?: 'BUYER' | 'SELLER' | 'SHARED' | string;
   consignment?: boolean;
   isPremium?: boolean;
+  premiumRate?: number | string | null;
   negotiable?: boolean;
   canTest?: boolean;
   canTransfer?: boolean;
@@ -47,7 +52,13 @@ interface Product {
       tradeCount: number;
       positiveRate?: number;
       disputeRate?: number;
+      refundRate?: number;
     };
+  };
+  _count?: {
+    browsingHistory?: number;
+    orders?: number;
+    favorites?: number;
   };
 }
 
@@ -57,7 +68,9 @@ const SORT_OPTIONS = [
   { value: 'latest', label: '默认（最新上架）' },
   { value: 'price_asc', label: '价格升序' },
   { value: 'price_desc', label: '价格降序' },
-  { value: 'expire_asc', label: '到期时间优先' }
+  { value: 'expire_asc', label: '到期时间优先' },
+  { value: 'views_desc', label: '浏览量优先' },
+  { value: 'hot_desc', label: '热度优先（订单）' }
 ];
 
 const DELIVERY_LABEL: Record<string, string> = {
@@ -100,9 +113,16 @@ export default function ProductsPage() {
   const [category, setCategory] = useState('');
   const [region, setRegion] = useState('');
   const [lineType, setLineType] = useState('');
+  const [diskType, setDiskType] = useState('');
   const [deliveryType, setDeliveryType] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [premiumOnly, setPremiumOnly] = useState(false);
+  const [minPremiumRate, setMinPremiumRate] = useState('');
+  const [maxPremiumRate, setMaxPremiumRate] = useState('');
+  const [minTraffic, setMinTraffic] = useState('');
+  const [minIp, setMinIp] = useState('');
+  const [minDdos, setMinDdos] = useState('');
   const [riskOnly, setRiskOnly] = useState(false);
   const [canTestOnly, setCanTestOnly] = useState(false);
   const [canTransferOnly, setCanTransferOnly] = useState(false);
@@ -122,10 +142,17 @@ export default function ProductsPage() {
       if (category) params.set('category', category);
       if (region) params.set('region', region);
       if (lineType) params.set('lineType', lineType);
+      if (diskType) params.set('diskType', diskType);
       if (deliveryType) params.set('deliveryType', deliveryType);
       if (feePayer) params.set('feePayer', feePayer);
       if (minPrice) params.set('minPrice', minPrice);
       if (maxPrice) params.set('maxPrice', maxPrice);
+      if (premiumOnly) params.set('premiumOnly', 'true');
+      if (minPremiumRate) params.set('minPremiumRate', minPremiumRate);
+      if (maxPremiumRate) params.set('maxPremiumRate', maxPremiumRate);
+      if (minTraffic) params.set('minTraffic', minTraffic);
+      if (minIp) params.set('minIp', minIp);
+      if (minDdos) params.set('minDdos', minDdos);
       if (riskOnly) params.set('riskOnly', 'true');
       if (canTestOnly) params.set('canTest', 'true');
       if (canTransferOnly) params.set('canTransfer', 'true');
@@ -149,10 +176,17 @@ export default function ProductsPage() {
     category,
     region,
     lineType,
+    diskType,
     deliveryType,
     feePayer,
     minPrice,
     maxPrice,
+    premiumOnly,
+    minPremiumRate,
+    maxPremiumRate,
+    minTraffic,
+    minIp,
+    minDdos,
     riskOnly,
     canTestOnly,
     canTransferOnly,
@@ -173,10 +207,17 @@ export default function ProductsPage() {
     category,
     region,
     lineType,
+    diskType,
     deliveryType,
     feePayer,
     minPrice,
     maxPrice,
+    premiumOnly,
+    minPremiumRate,
+    maxPremiumRate,
+    minTraffic,
+    minIp,
+    minDdos,
     riskOnly,
     canTestOnly,
     canTransferOnly,
@@ -240,12 +281,50 @@ export default function ProductsPage() {
             <input placeholder="如 CN2/BGP" value={lineType} onChange={(e) => setLineType(e.target.value)} />
           </div>
           <div className="field">
+            <label>硬盘类型</label>
+            <input placeholder="如 SSD/NVMe/SAS" value={diskType} onChange={(e) => setDiskType(e.target.value)} />
+          </div>
+          <div className="field">
             <label>最低价</label>
             <input type="number" min="0" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
           </div>
           <div className="field">
             <label>最高价</label>
             <input type="number" min="0" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>最小流量（GB/月）</label>
+            <input type="number" min="0" value={minTraffic} onChange={(e) => setMinTraffic(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>溢价下限（0-1）</label>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.01"
+              value={minPremiumRate}
+              onChange={(e) => setMinPremiumRate(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>溢价上限（0-1）</label>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.01"
+              value={maxPremiumRate}
+              onChange={(e) => setMaxPremiumRate(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>最小 IP 数</label>
+            <input type="number" min="0" value={minIp} onChange={(e) => setMinIp(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>最小防御（G）</label>
+            <input type="number" min="0" value={minDdos} onChange={(e) => setMinDdos(e.target.value)} />
           </div>
           <div className="field">
             <label>交付方式</label>
@@ -292,10 +371,17 @@ export default function ProductsPage() {
               setCategory('');
               setRegion('');
               setLineType('');
+              setDiskType('');
               setDeliveryType('');
               setFeePayer('');
               setMinPrice('');
               setMaxPrice('');
+              setPremiumOnly(false);
+              setMinPremiumRate('');
+              setMaxPremiumRate('');
+              setMinTraffic('');
+              setMinIp('');
+              setMinDdos('');
               setRiskOnly(false);
               setCanTestOnly(false);
               setCanTransferOnly(false);
@@ -304,6 +390,13 @@ export default function ProductsPage() {
             }}
           >
             重置筛选
+          </button>
+          <button
+            type="button"
+            className={`btn ${premiumOnly ? 'primary' : 'secondary'}`}
+            onClick={() => setPremiumOnly((v) => !v)}
+          >
+            {premiumOnly ? '仅看溢价商品' : '包含普通商品'}
           </button>
           <button
             type="button"
@@ -363,11 +456,17 @@ export default function ProductsPage() {
                     {item.canTest ? <span className="status-chip info">支持测试</span> : null}
                     {item.canTransfer ? <span className="status-chip info">支持过户</span> : null}
                     {item.isPremium ? <span className="status-chip danger">急售</span> : null}
+                    {item.premiumRate !== null && item.premiumRate !== undefined ? (
+                      <span className="status-chip warning">溢价 {Number(item.premiumRate).toFixed(2)}</span>
+                    ) : null}
                     {item.riskTags?.length ? <span className="status-chip warning">风险标签</span> : null}
                   </div>
                 </div>
                 <div className="stack-8" style={{ textAlign: 'right' }}>
                   <span className="price">¥{Number(item.salePrice).toFixed(2)}</span>
+                  {item.minAcceptPrice ? (
+                    <span className="muted">最低可接受：¥{Number(item.minAcceptPrice).toFixed(2)}</span>
+                  ) : null}
                   <span className="muted">{DELIVERY_LABEL[item.deliveryType || ''] || item.deliveryType || '交付方式未标注'}</span>
                   <span className="muted">{FEE_PAYER_LABEL[item.feePayer || ''] || `服务费：${item.feePayer || 'SELLER'}`}</span>
                   {latestConsignment?.reviewedAt ? (
@@ -409,6 +508,18 @@ export default function ProductsPage() {
                     {item.expireAt ? new Date(item.expireAt).toLocaleDateString('zh-CN') : '未标注'}
                   </p>
                 </div>
+                <div className="spec-item">
+                  <p className="label">IP / 防御</p>
+                  <p className="value">
+                    {item.ipCount || 0} IP / {item.ddos ? `${item.ddos} G` : '-'}
+                  </p>
+                </div>
+                <div className="spec-item">
+                  <p className="label">原购入价</p>
+                  <p className="value">
+                    {item.purchasePrice ? `¥${Number(item.purchasePrice).toFixed(2)}` : '未填写'}
+                  </p>
+                </div>
               </div>
 
               <div className="card-meta" style={{ justifyContent: 'space-between' }}>
@@ -417,8 +528,12 @@ export default function ProductsPage() {
                   成交 {item.seller?.sellerProfile?.tradeCount ?? 0}
                 </span>
                 <span>
+                  浏览 {item._count?.browsingHistory ?? 0} · 订单 {item._count?.orders ?? 0} · 收藏 {item._count?.favorites ?? 0} ·
+                </span>
+                <span>
                   好评率 {(((item.seller?.sellerProfile?.positiveRate ?? 0.98) || 0) * 100).toFixed(1)}% ·
-                  纠纷率 {(((item.seller?.sellerProfile?.disputeRate ?? 0.01) || 0) * 100).toFixed(1)}%
+                  纠纷率 {(((item.seller?.sellerProfile?.disputeRate ?? 0.01) || 0) * 100).toFixed(1)}% ·
+                  退款率 {(((item.seller?.sellerProfile?.refundRate ?? 0.01) || 0) * 100).toFixed(1)}%
                 </span>
               </div>
 

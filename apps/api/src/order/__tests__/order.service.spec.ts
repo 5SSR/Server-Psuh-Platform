@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../../wallet/wallet.service';
 import { NoticeService } from '../../notice/notice.service';
 import { RiskService } from '../../risk/risk.service';
+import { PaymentRefundService } from '../../payment/payment-refund.service';
 
 describe('OrderService', () => {
   let service: OrderService;
@@ -13,6 +14,7 @@ describe('OrderService', () => {
   let wallet: any;
   let noticeService: any;
   let riskService: any;
+  let paymentRefundService: any;
 
   beforeEach(async () => {
     prisma = {
@@ -43,6 +45,14 @@ describe('OrderService', () => {
     riskService = {
       evaluate: jest.fn().mockResolvedValue({ action: 'ALLOW', reason: 'ok' })
     };
+    paymentRefundService = {
+      attemptRefund: jest.fn().mockResolvedValue({
+        channel: 'ALIPAY',
+        supported: true,
+        success: true,
+        mode: 'MOCK'
+      })
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -50,7 +60,8 @@ describe('OrderService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: WalletService, useValue: wallet },
         { provide: NoticeService, useValue: noticeService },
-        { provide: RiskService, useValue: riskService }
+        { provide: RiskService, useValue: riskService },
+        { provide: PaymentRefundService, useValue: paymentRefundService }
       ]
     }).compile();
 

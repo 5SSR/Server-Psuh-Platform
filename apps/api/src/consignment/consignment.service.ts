@@ -220,6 +220,7 @@ export class ConsignmentService {
                   level: true,
                   tradeCount: true,
                   disputeRate: true,
+                  refundRate: true,
                   positiveRate: true
                 }
               }

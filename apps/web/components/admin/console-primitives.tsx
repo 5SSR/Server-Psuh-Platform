@@ -98,5 +98,9 @@ export function formatDateTime(value?: string | null) {
   if (!value) return '-';
   const t = new Date(value);
   if (Number.isNaN(t.getTime())) return '-';
-  return t.toLocaleString('zh-CN');
+  const locale =
+    typeof document !== 'undefined' && document.documentElement.lang?.toLowerCase().startsWith('en')
+      ? 'en-US'
+      : 'zh-CN';
+  return t.toLocaleString(locale);
 }

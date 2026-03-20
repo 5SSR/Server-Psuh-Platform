@@ -157,6 +157,14 @@ export default async function ProductDetail({ params }: { params: { id: string }
                 <p className="value">{detail.renewPrice ? `¥${Number(detail.renewPrice).toFixed(2)}` : '未填写'}</p>
               </div>
               <div className="spec-item">
+                <p className="label">原购入价</p>
+                <p className="value">{detail.purchasePrice ? `¥${Number(detail.purchasePrice).toFixed(2)}` : '未填写'}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">最低接受价</p>
+                <p className="value">{detail.minAcceptPrice ? `¥${Number(detail.minAcceptPrice).toFixed(2)}` : '未填写'}</p>
+              </div>
+              <div className="spec-item">
                 <p className="label">服务商</p>
                 <p className="value">{detail.providerName || '未填写'}</p>
               </div>
@@ -299,6 +307,10 @@ export default async function ProductDetail({ params }: { params: { id: string }
                 <p className="value">{((detail.seller?.sellerProfile?.disputeRate ?? 0) * 100).toFixed(2)}%</p>
               </div>
               <div className="spec-item">
+                <p className="label">退款率</p>
+                <p className="value">{((detail.seller?.sellerProfile?.refundRate ?? 0) * 100).toFixed(2)}%</p>
+              </div>
+              <div className="spec-item">
                 <p className="label">好评率</p>
                 <p className="value">{((detail.seller?.sellerProfile?.positiveRate ?? 0) * 100).toFixed(2)}%</p>
               </div>
@@ -317,8 +329,11 @@ export default async function ProductDetail({ params }: { params: { id: string }
               <p>2. 核验记录留痕，交易过程可追溯。</p>
               <p>3. 纠纷仲裁机制，保障买卖双方权益。</p>
             </div>
-            <Link href="/help" className="btn secondary">
-              查看完整规则
+            <Link href="/rules" className="btn secondary">
+              查看交易规则
+            </Link>
+            <Link href="/agreement" className="btn ghost">
+              服务协议
             </Link>
           </section>
         </aside>

@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
-const LOCALE_KEY = 'idc_locale';
+import {
+  hasEnPrefix,
+  LOCALE_KEY,
+  readLocaleFromCookie,
+  resolveClientLocale
+} from './locale';
 
 export function useLocale() {
+  const pathname = usePathname();
   const [locale, setLocale] = useState('zh-CN');
 
   useEffect(() => {
-    const saved = localStorage.getItem(LOCALE_KEY) || 'zh-CN';
-    setLocale(saved);
+    const nextLocale = resolveClientLocale(pathname);
+    setLocale(nextLocale);
+    localStorage.setItem(LOCALE_KEY, nextLocale);
+    document.documentElement.lang = nextLocale;
+
     const handler = (event: Event) => {
       const next = (event as CustomEvent<string>).detail;
       if (next) {
@@ -20,7 +30,22 @@ export function useLocale() {
     return () => {
       window.removeEventListener('locale-change', handler as EventListener);
     };
-  }, []);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (pathname && hasEnPrefix(pathname)) {
+      if (locale !== 'en-US') {
+        setLocale('en-US');
+      }
+      return;
+    }
+
+    const cookieLocale = readLocaleFromCookie(document.cookie);
+    if (cookieLocale && cookieLocale !== locale) {
+      setLocale(cookieLocale);
+    }
+  }, [pathname, locale]);
 
   const isEn = locale.startsWith('en');
 

@@ -27,6 +27,7 @@ type SellerOverview = {
     level: number;
     tradeCount: number;
     disputeRate: number;
+    refundRate?: number;
     avgDeliveryMinutes: number;
     positiveRate: number;
   } | null;
@@ -152,6 +153,9 @@ export default function SellerDashboardPage() {
               <p className="muted">平均交付：{data.sellerProfile?.avgDeliveryMinutes ?? 0} 分钟</p>
               <p className="muted">
                 纠纷率：{((data.sellerProfile?.disputeRate ?? 0) * 100).toFixed(2)}%
+              </p>
+              <p className="muted">
+                退款率：{((data.sellerProfile?.refundRate ?? 0) * 100).toFixed(2)}%
               </p>
               <p className="muted">
                 好评率：{((data.sellerProfile?.positiveRate ?? 0) * 100).toFixed(2)}%

@@ -8,6 +8,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OrderService } from './order.service';
 import { VerifyDto } from './dto/verify.dto';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
+import { ReviewOrderRiskDto } from './dto/review-order-risk.dto';
+import { DeliverDto } from './dto/deliver.dto';
 
 @Controller('admin/orders')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -36,5 +38,23 @@ export class AdminOrderController {
     @Body() body: { remark?: string }
   ) {
     return this.orderService.forceComplete(id, user.userId, body.remark);
+  }
+
+  @Patch(':id/risk-review')
+  reviewRisk(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string,
+    @Body() dto: ReviewOrderRiskDto
+  ) {
+    return this.orderService.reviewOrderRisk(id, user.userId, dto);
+  }
+
+  @Patch(':id/deliver')
+  deliverByAdmin(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string,
+    @Body() dto: DeliverDto
+  ) {
+    return this.orderService.deliverByAdmin(id, user.userId, dto);
   }
 }

@@ -3,7 +3,41 @@
 > 更新频率：每次开发后追加，便于下一次快速接力。
 
 ## 2026-03-20
+- 缺口收口（公告链路）：新增公开公告前台页 `/announcements` 与 `/announcements/[id]`，首页接入“平台公告”区块；后台内容运营页 `/admin/content` 补齐公告创建、上下线、置顶、时间窗、列表与详情编辑完整工作流。
+- 缺口收口（寄售交付）：管理端订单页 `/admin/orders` 新增“寄售平台代交付”操作区，仅在“已支付待交付 + 商品寄售”条件下展示，调用 `PATCH /admin/orders/:id/deliver` 推进履约流程。
+- 缺口收口（商品核心编辑）：管理端商品页 `/admin/products` 新增“商品核心字段编辑”面板，支持维护地区/线路/配置参数/到期时间/交付属性/风险属性，并调用 `PATCH /admin/products/:id` 即时生效。
+- 缺口收口（信用指标）：卖家画像新增 `refundRate` 前端展示，已在管理端用户详情、管理端商品详情、卖家看板、商品列表/详情、店铺页透出。
+- 缺口收口（财务导出）：管理端财务页 `/admin/finance` 增加 CSV 导出面板（订单/结算/退款/提现），对接 `GET /admin/finance/export`，支持时间窗、状态、渠道过滤。
+- 测试与构建回归：
+  - `pnpm --filter @idc/api lint` ✅
+  - `pnpm --filter @idc/api test` ✅（修复 `wallet.service.spec.ts` 中 `refund` mock 缺失）
+  - `pnpm --filter @idc/api build` ✅
+  - `pnpm --filter @idc/web lint` ✅
+  - `pnpm --filter @idc/web build` ✅
+- 全站 `/en` 路由镜像上线：新增 `apps/web/middleware.ts`，支持 `/en/* -> 原路径` 重写并保留地址栏，语言优先级统一为 `pathname(/en) > cookie(idc_locale) > localStorage`；当 cookie 为 `en-US` 时访问中文路径自动 307 跳转到 `/en/*`。
+- 语言链路收口：新增 `apps/web/lib/locale.ts`（`toLocalePath/toLocaleHref/toLocaleRoute` 等工具），并在 `top-nav`、`locale-switch`、`auth-guard`、登录/注册、求购发布、议价入口等关键跳转点透传 locale，避免英文链路被回跳到中文。
+- 双语覆盖增强：新增 `apps/web/lib/zh-en-dict.ts` 与 `components/auto-i18n.tsx`，在英文路径下对页面动态文本进行自动替换；结合原有 `useLocale`，完成核心交易流程与控制台主要文案英文化。
+- 通知通道运营化增强：`NoticeService` 新增通道模式解析（`INTERNAL/MOCK/REMOTE/DISABLED`）与分发分支，`createSystemNotice` 在 EMAIL/TG/SMS/WECHAT_TEMPLATE 场景支持 mock 发送和禁用保护，统一状态回写。
+- 新增通知通道 API：`GET /admin/notices/channels` 返回通道模式、配置状态、24h 成功/失败统计与最近发送记录；`POST /admin/notices/channels/test` 支持按通道执行测试发送（含 TG chatId、SMS mobile、微信模板 openId/templateCode 参数）。
+- 管理端通知页升级：`/admin/notices` 新增“通道健康与测试”工作区，可视化查看五通道状态并触发测试发送，补齐通知系统运维闭环。
+- 配置文档更新：`.env.example` 新增 `NOTICE_CHANNEL_*_MODE` 配置项；`README.md` 新增 `/en` 路由说明、通知通道健康/测试命令示例。
+- 回归验证：`pnpm --filter @idc/api lint/build`、`pnpm --filter @idc/web lint/build` 全通过；抽样路由探活 `GET /`、`/en`、`/en/products`、`/en/admin/notices` 均返回 200，cookie 强制英文验证 `GET /products -> 307 /en/products`。
 - 开放接口签名鉴权与监控收口：修复 `open-api.service.ts` 构建阻塞（`TooManyRequestsException` 兼容性、Prisma `groupBy` `_all` 类型不匹配），改为 `HttpException(429)` + `id` 字段计数聚合；`@idc/api build` 恢复通过。
+- 财务报表工作台补齐：新增 `GET /admin/finance/overview`（按时间窗口返回成交额、手续费、退款、结算/提现分布、支付渠道聚合与最近财务事件流），前端新增 `/admin/finance` 页面并加入控制台导航。
+- 用户风控页增强：`GET /admin/users` 返回新增 `riskMarks/riskEntities/sellerProfile`；管理页 `/admin/users` 增加“风险标签展示 + 黑名单/观察名单加入与解除 + 卖家信用画像（等级/成交/纠纷率/交付时效/好评率）”。
+- 部署兼容性修复：根目录 `package.json` 将 `@noble/hashes` override 固定为 `1.8.0`，并同步 `pnpm-lock.yaml`，规避 Debian + Node 20 环境下 `otplib` 相关 ESM 兼容启动报错。
+- 内容运营工作台二轮重构：`/admin/content` 从简单表单升级为控制台风格（页面头部 + 筛选区 + 创建区 + 表格区），补齐 Banner/FAQ/帮助文档/标签的启停与删除动作，并新增 `ZONE` 标签类型以承接“专区入口”配置。
+- 首页运营入口增强：`/` 新增“专区入口”版块，自动读取 `type=ZONE|PROMOTION` 的市场标签并生成跳转到交易市场的筛选入口，形成“后台配置 -> 前台展示”的闭环。
+- 专区入口链接能力补齐：`MarketTag` 新增 `linkUrl` 字段（迁移 `20260320183000_add_market_tag_link_url`），后台内容运营页支持填写与编辑“自定义跳转链接”（支持站内路径与完整 URL）；首页专区入口优先使用 `linkUrl`，为空时回退到按标签筛选。
+- 内容运营页标签编辑闭环：`/admin/content` 增加“详情操作区 · 标签编辑”，支持对已选标签进行名称、类型、颜色、排序、启停状态与跳转链接的在线修改，并保留重置能力。
+- 内容运营编辑能力继续补齐：`/admin/content` 新增 Banner、FAQ、帮助文档的“详情操作区”，支持列表选中后进行在线编辑（标题/分类/正文/排序/启停/链接）并保存，形成“创建 + 启停 + 删除 + 编辑”完整闭环。
+- 首页专区入口外链策略完善：当专区 `linkUrl` 为外部地址时自动以新窗口打开并展示“外链”标识；站内地址维持原窗口跳转，避免用户误解。
+- 内容运营排序效率优化：`/admin/content` 的 Banner、FAQ、帮助文档列表新增“上移/下移 + 保存排序”机制，支持运营在后台可视化调整展示顺序后统一持久化。
+- 后台发布预览增强：`/admin/content` 新增“发布预览区”，按启用状态实时展示首页将生效的 Banner/FAQ/帮助文档/专区入口数量与示例，降低误发布风险。
+- 内容运营版本控制补齐（草稿发布/历史回滚）：新增 `ContentRelease` 数据模型与迁移 `20260320195500_add_content_release`，后台新增接口 `GET /admin/content/releases`、`POST /admin/content/publish`、`POST /admin/content/releases/:id/rollback`，支持记录发布快照并按历史版本回滚。
+- 内容运营页发布控制区上线：`/admin/content` 新增“发布控制区”（发布说明、回滚备注、版本历史表、版本摘要、草稿同步状态），形成“创建/编辑/排序 -> 发布 -> 历史回滚”闭环。
+- 标签排序闭环补齐：`/admin/content` 的标签列表新增“上移/下移 + 保存标签排序”，并与筛选列表联动，运营可快速微调专区入口顺序。
+- 担保流程模块复用：新增公共组件 `components/escrow-flow.tsx`，将 `/help` 与 `/escrow` 的流程卡片与状态字典抽离复用，减少重复文案与后续维护成本。
 - 卖家开放接口页修复：修正签名示例文案中的 JSX 未转义引号与模板字符串插值（`${TS}` 等）导致的 lint/build 失败，`@idc/web lint/build` 通过。
 - 运营管理能力补齐（文档缺口对齐）：新增后台商品运营接口 `GET /admin/products` 与 `PATCH /admin/products/:id/market`，支持按关键词/状态/推荐位筛选并维护风险等级、风险标签、推荐位与溢价系数。
 - 管理端商品页二段式工作台：`/admin/products` 在原“待审商品管理”之外新增“运营商品池 + 运营配置区”，统一成“筛选区 + 表格区 + 详情操作区”，减少后台样式重复并强化交易平台运营感。

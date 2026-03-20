@@ -215,6 +215,7 @@ enum ReconcileItemStatus {
 
 enum RiskScene {
   LOGIN
+  CREATE_PRODUCT
   CREATE_ORDER
   PAYMENT_CALLBACK
   WITHDRAW
@@ -243,6 +244,20 @@ enum FeeConfigMode {
   FIXED
   RATE
   TIER
+}
+
+enum SupportTicketType {
+  AFTER_SALE
+  APPEAL
+  OTHER
+}
+
+enum SupportTicketStatus {
+  OPEN
+  PROCESSING
+  RESOLVED
+  CLOSED
+  REJECTED
 }
 
 // ========== 用户与认证 ==========
@@ -288,6 +303,8 @@ model User {
   buyerReviews OrderReview[]                       @relation("BuyerReviews")
   sellerReviews OrderReview[]                      @relation("SellerReviews")
   openApiKeys OpenApiKey[]
+  supportTickets SupportTicket[]            @relation("SupportTicketUser")
+  supportResolvedTickets SupportTicket[]    @relation("SupportTicketResolver")
 }
 
 model AuthCode {
@@ -350,6 +367,7 @@ model SellerProfile {
   level               Int     @default(1)
   tradeCount          Int     @default(0)
   disputeRate         Float   @default(0)
+  refundRate          Float   @default(0)
   avgDeliveryMinutes  Int     @default(0)
   positiveRate        Float   @default(0)
   createdAt           DateTime @default(now())
@@ -516,6 +534,7 @@ model Product {
   ddos              Int?
   purchasePrice     Decimal?        @db.Decimal(16, 2)
   salePrice         Decimal         @db.Decimal(16, 2)
+  minAcceptPrice    Decimal?        @db.Decimal(16, 2)
   renewPrice        Decimal?        @db.Decimal(16, 2)
   expireAt          DateTime?
   negotiable        Boolean         @default(false)
@@ -546,6 +565,7 @@ model Product {
   wantedOffers WantedOffer[]
   bargains Bargain[]
   consignmentApplications ConsignmentApplication[]
+  supportTickets SupportTicket[]
 
   @@index([sellerId, status])
   @@index([category, status])
@@ -700,6 +720,12 @@ model Order {
   payStatus        PayStatus   @default(UNPAID)
   escrowAmount     Decimal     @db.Decimal(16, 2)
   status           OrderStatus @default(PENDING_PAYMENT)
+  riskAction       RiskAction  @default(ALLOW)
+  riskReviewRequired Boolean   @default(false)
+  riskReviewPassed Boolean?
+  riskReviewedAt   DateTime?
+  riskReviewedBy   String?
+  riskReviewRemark String?
   expiresAt        DateTime?
   autoConfirmAt    DateTime?
   createdAt        DateTime    @default(now())
@@ -714,10 +740,12 @@ model Order {
   logs            OrderLog[]
   bargain         Bargain?
   review          OrderReview?
+  supportTickets  SupportTicket[]
 
   @@index([buyerId, status])
   @@index([sellerId, status])
   @@index([productId])
+  @@index([riskReviewRequired, riskReviewPassed, createdAt])
 }
 
 model OrderReview {
@@ -972,6 +1000,33 @@ model Notice {
   createdAt   DateTime      @default(now())
 }
 
+model SupportTicket {
+  id           String              @id @default(uuid())
+  user         User                @relation("SupportTicketUser", fields: [userId], references: [id])
+  userId       String
+  order        Order?              @relation(fields: [orderId], references: [id])
+  orderId      String?
+  product      Product?            @relation(fields: [productId], references: [id])
+  productId    String?
+  type         SupportTicketType   @default(AFTER_SALE)
+  status       SupportTicketStatus @default(OPEN)
+  subject      String
+  content      String              @db.Text
+  evidence     Json?
+  contact      String?
+  reviewRemark String?
+  resolverId   String?
+  resolver     User?               @relation("SupportTicketResolver", fields: [resolverId], references: [id])
+  resolvedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([status, type, createdAt])
+  @@index([orderId, createdAt])
+  @@index([productId, createdAt])
+}
+
 // ========== 内容运营 ==========
 
 model Banner {
@@ -1022,12 +1077,62 @@ model MarketTag {
   name      String
   type      String   @default("GENERAL")
   color     String?
+  linkUrl   String?  @db.VarChar(512)
   position  Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([type, isActive, position])
+}
+
+model Announcement {
+  id          String   @id @default(uuid())
+  title       String
+  summary     String?
+  content     String   @db.Text
+  isActive    Boolean  @default(true)
+  isPinned    Boolean  @default(false)
+  position    Int      @default(0)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  publishedAt DateTime?
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, isPinned, position])
+  @@index([publishedAt, createdAt])
+}
+
+model ContentRelease {
+  id              String   @id @default(uuid())
+  version         Int      @unique
+  action          String   @default("PUBLISH")
+  sourceReleaseId String?
+  snapshot        Json
+  summary         Json?
+  note            String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+}
+
+model PolicyDocument {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  title     String
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  position  Int      @default(0)
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
 }
 
 // ========== 管理员审计日志 ==========

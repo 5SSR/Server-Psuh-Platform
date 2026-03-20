@@ -80,6 +80,16 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  purchasePrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minAcceptPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   renewPrice?: number;
 
   @IsOptional()

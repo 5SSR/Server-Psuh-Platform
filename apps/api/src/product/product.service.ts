@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { Prisma, ProductStatus, RiskScene } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { RiskService } from '../risk/risk.service';
 
 import { QueryProductDto } from './dto/query-product.dto';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -17,7 +18,10 @@ import { SyncProviderConfigDto } from './dto/sync-provider-config.dto';
 
 @Injectable()
 export class ProductService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly riskService: RiskService
+  ) {}
 
   private parseBooleanFlag(value?: string) {
     if (value === undefined || value === null || value === '') return undefined;
@@ -35,14 +39,20 @@ export class ProductService {
       category,
       region,
       lineType,
+      diskType,
       deliveryType,
       riskLevel,
       minCpu,
       minMemory,
       minDisk,
       minBandwidth,
+      minTraffic,
+      minIp,
+      minDdos,
       minPrice,
       maxPrice,
+      minPremiumRate,
+      maxPremiumRate,
       status,
       sortBy
     } = query;
@@ -55,6 +65,7 @@ export class ProductService {
     const canTransfer = this.parseBooleanFlag(query.canTransfer);
     const riskOnly = this.parseBooleanFlag(query.riskOnly);
     const urgentOnly = this.parseBooleanFlag(query.urgentOnly);
+    const premiumOnly = this.parseBooleanFlag(query.premiumOnly);
 
     const orderBy: Prisma.ProductOrderByWithRelationInput =
       sortBy === 'price_asc'
@@ -63,6 +74,10 @@ export class ProductService {
           ? { salePrice: 'desc' }
           : sortBy === 'expire_asc'
             ? { expireAt: 'asc' }
+            : sortBy === 'views_desc'
+              ? { browsingHistory: { _count: 'desc' } }
+              : sortBy === 'hot_desc'
+                ? { orders: { _count: 'desc' } }
             : sortBy === 'seller_desc'
               ? { updatedAt: 'desc' }
               : { createdAt: 'desc' };
@@ -80,6 +95,7 @@ export class ProductService {
       ...(category ? { category } : undefined),
       ...(region ? { region: { contains: region } } : undefined),
       ...(lineType ? { lineType: { contains: lineType } } : undefined),
+      ...(diskType ? { diskType: { contains: diskType } } : undefined),
       ...(deliveryType ? { deliveryType } : undefined),
       ...(riskLevel ? { riskLevel } : undefined),
       ...(typeof negotiable === 'boolean' ? { negotiable } : undefined),
@@ -90,6 +106,7 @@ export class ProductService {
       ...(typeof canTransfer === 'boolean' ? { canTransfer } : undefined),
       ...(query.feePayer ? { feePayer: query.feePayer } : undefined),
       ...(typeof urgentOnly === 'boolean' ? { isPremium: urgentOnly } : undefined),
+      ...(typeof premiumOnly === 'boolean' ? { isPremium: premiumOnly } : undefined),
       ...(riskOnly
         ? {
             riskTags: {
@@ -101,11 +118,22 @@ export class ProductService {
       ...(minMemory ? { memoryGb: { gte: minMemory } } : undefined),
       ...(minDisk ? { diskGb: { gte: minDisk } } : undefined),
       ...(minBandwidth ? { bandwidthMbps: { gte: minBandwidth } } : undefined),
+      ...(minTraffic ? { trafficLimit: { gte: minTraffic } } : undefined),
+      ...(minIp ? { ipCount: { gte: minIp } } : undefined),
+      ...(minDdos ? { ddos: { gte: minDdos } } : undefined),
       ...(minPrice || maxPrice
         ? {
             salePrice: {
               gte: minPrice,
               lte: maxPrice
+            }
+          }
+        : undefined),
+      ...(minPremiumRate !== undefined || maxPremiumRate !== undefined
+        ? {
+            premiumRate: {
+              gte: minPremiumRate,
+              lte: maxPremiumRate
             }
           }
         : undefined)
@@ -141,10 +169,18 @@ export class ProductService {
                   level: true,
                   tradeCount: true,
                   disputeRate: true,
+                  refundRate: true,
                   avgDeliveryMinutes: true,
                   positiveRate: true
                 }
               }
+            }
+          },
+          _count: {
+            select: {
+              browsingHistory: true,
+              orders: true,
+              favorites: true
             }
           }
         }
@@ -192,6 +228,7 @@ export class ProductService {
                 level: true,
                 tradeCount: true,
                 disputeRate: true,
+                refundRate: true,
                 avgDeliveryMinutes: true,
                 positiveRate: true
               }
@@ -242,6 +279,25 @@ export class ProductService {
   }
 
   async create(sellerId: string, dto: CreateProductDto) {
+    const risk = await this.riskService.evaluate(RiskScene.CREATE_PRODUCT, {
+      userId: sellerId,
+      amount: Number(dto.salePrice),
+      category: dto.category,
+      region: dto.region,
+      lineType: dto.lineType,
+      productTitle: dto.title
+    });
+    if (risk.action === 'BLOCK' || risk.action === 'LIMIT') {
+      throw new ForbiddenException('商品发布触发风控拦截，请联系平台客服处理');
+    }
+
+    const riskTags = new Set<string>(dto.riskTags ?? []);
+    if (risk.action === 'REVIEW') riskTags.add('风控复核');
+    if (risk.action === 'ALERT') riskTags.add('风控提醒');
+    if (risk.reason && risk.action !== 'ALLOW') {
+      riskTags.add(risk.reason.slice(0, 60));
+    }
+
     const code = `P${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
     return this.prisma.product.create({
       data: {
@@ -250,12 +306,17 @@ export class ProductService {
         status: ProductStatus.PENDING,
         ...dto,
         salePrice: new Prisma.Decimal(dto.salePrice),
-        renewPrice: dto.renewPrice ? new Prisma.Decimal(dto.renewPrice) : null,
+        purchasePrice:
+          dto.purchasePrice !== undefined ? new Prisma.Decimal(dto.purchasePrice) : null,
+        minAcceptPrice:
+          dto.minAcceptPrice !== undefined ? new Prisma.Decimal(dto.minAcceptPrice) : null,
+        renewPrice:
+          dto.renewPrice !== undefined ? new Prisma.Decimal(dto.renewPrice) : null,
         expireAt: dto.expireAt ? new Date(dto.expireAt) : null,
         feePayer: dto.feePayer ?? 'SELLER',
         canTest: dto.canTest ?? false,
         canTransfer: dto.canTransfer ?? false,
-        riskTags: dto.riskTags ?? []
+        riskTags: Array.from(riskTags)
       }
     });
   }
@@ -270,6 +331,10 @@ export class ProductService {
       data: {
         ...dto,
         salePrice: dto.salePrice !== undefined ? new Prisma.Decimal(dto.salePrice) : undefined,
+        purchasePrice:
+          dto.purchasePrice !== undefined ? new Prisma.Decimal(dto.purchasePrice) : undefined,
+        minAcceptPrice:
+          dto.minAcceptPrice !== undefined ? new Prisma.Decimal(dto.minAcceptPrice) : undefined,
         renewPrice:
           dto.renewPrice !== undefined ? new Prisma.Decimal(dto.renewPrice) : undefined,
         expireAt: dto.expireAt ? new Date(dto.expireAt) : undefined,

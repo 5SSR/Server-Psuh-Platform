@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateMarketTagDto {
   @IsString()
@@ -11,6 +11,11 @@ export class CreateMarketTagDto {
   @IsOptional()
   @IsString()
   color?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  linkUrl?: string;
 
   @IsOptional()
   @IsInt()

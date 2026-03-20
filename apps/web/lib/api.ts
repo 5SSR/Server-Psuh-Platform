@@ -63,6 +63,8 @@ export interface Product {
   trafficLimit?: number;
   ipCount?: number;
   ddos?: number;
+  purchasePrice?: number;
+  minAcceptPrice?: number;
   deliveryType?: string;
   feePayer?: 'BUYER' | 'SELLER' | 'SHARED' | string;
   negotiable?: boolean;
@@ -100,9 +102,15 @@ export interface Product {
       level: number;
       tradeCount: number;
       disputeRate: number;
+      refundRate?: number;
       avgDeliveryMinutes: number;
       positiveRate: number;
     } | null;
+  };
+  _count?: {
+    browsingHistory?: number;
+    orders?: number;
+    favorites?: number;
   };
 }
 
@@ -141,6 +149,7 @@ export interface StorePublicData {
         level: number;
         tradeCount: number;
         disputeRate: number;
+        refundRate?: number;
         avgDeliveryMinutes: number;
         positiveRate: number;
       } | null;
@@ -189,6 +198,17 @@ export interface MarketTag {
   name: string;
   type: string;
   color?: string | null;
+  linkUrl?: string | null;
+}
+
+export interface PolicyDocument {
+  id: string;
+  code: string;
+  title: string;
+  content: string;
+  position?: number;
+  isActive?: boolean;
+  updatedAt?: string;
 }
 
 export interface HomeContent {
@@ -196,6 +216,23 @@ export interface HomeContent {
   faqs: ContentFaq[];
   helps: HelpArticle[];
   tags: MarketTag[];
+  policies?: PolicyDocument[];
+  announcements?: Announcement[];
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  summary?: string | null;
+  content: string;
+  isActive: boolean;
+  isPinned: boolean;
+  position: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WantedRequest {
@@ -312,6 +349,45 @@ export const api = {
         reviews: []
       }
     ),
-  homeContent: () => request<HomeContent>('/content/home', undefined, { banners: [], faqs: [], helps: [], tags: [] }),
-  helpArticles: () => request<HelpArticle[]>('/content/help', undefined, [])
+  homeContent: () =>
+    request<HomeContent>('/content/home', undefined, {
+      banners: [],
+      faqs: [],
+      helps: [],
+      tags: [],
+      policies: [],
+      announcements: []
+    }),
+  helpArticles: () => request<HelpArticle[]>('/content/help', undefined, []),
+  announcements: (limit = 20) =>
+    request<Announcement[]>(`/content/announcements?limit=${limit}`, undefined, []),
+  announcementById: (id: string) =>
+    request<Announcement>(
+      `/content/announcements/${id}`,
+      undefined,
+      {
+        id,
+        title: '公告暂不可用',
+        summary: '',
+        content: '当前环境暂未读取到公告详情，请稍后重试。',
+        isActive: false,
+        isPinned: false,
+        position: 0,
+        publishedAt: null,
+        createdAt: new Date(0).toISOString(),
+        updatedAt: new Date(0).toISOString()
+      }
+    ),
+  policies: () => request<PolicyDocument[]>('/content/policies', undefined, []),
+  policyByCode: (code: string) =>
+    request<PolicyDocument>(
+      `/content/policies/${encodeURIComponent(code)}`,
+      undefined,
+      {
+        id: `fallback-${code}`,
+        code,
+        title: code.toUpperCase() === 'AGREEMENT' ? '平台服务协议（暂未发布）' : '平台交易规则（暂未发布）',
+        content: '当前环境暂未获取到规则文档，请稍后重试或联系管理员发布内容。'
+      }
+    )
 };

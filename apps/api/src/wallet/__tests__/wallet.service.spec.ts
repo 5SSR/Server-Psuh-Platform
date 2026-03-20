@@ -37,6 +37,9 @@ describe('WalletService', () => {
         findMany: jest.fn(),
         aggregate: jest.fn(),
       },
+      refund: {
+        count: jest.fn(),
+      },
       orderReview: {
         count: jest.fn(),
       },
@@ -126,6 +129,7 @@ describe('WalletService', () => {
     it('should calculate and upsert seller profile', async () => {
       prisma.settlement.count.mockResolvedValue(10);
       prisma.dispute.count.mockResolvedValue(1);
+      prisma.refund.count.mockResolvedValue(1);
       prisma.order.findMany.mockResolvedValue([]);
       prisma.orderReview.count
         .mockResolvedValueOnce(2)

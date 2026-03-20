@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 
 import { ContentService } from './content.service';
 
@@ -29,5 +29,26 @@ export class ContentController {
   @Get('tags')
   listTags() {
     return this.contentService.listMarketTags();
+  }
+
+  @Get('policies')
+  listPolicies() {
+    return this.contentService.listPolicyDocuments(true);
+  }
+
+  @Get('policies/:code')
+  getPolicyByCode(@Param('code') code: string) {
+    return this.contentService.getPolicyByCode(code);
+  }
+
+  @Get('announcements')
+  listAnnouncements(@Query('limit') limit?: string) {
+    const parsed = Number(limit);
+    return this.contentService.listAnnouncements(true, Number.isFinite(parsed) ? parsed : 20);
+  }
+
+  @Get('announcements/:id')
+  getAnnouncementById(@Param('id') id: string) {
+    return this.contentService.getAnnouncementById(id, true);
   }
 }

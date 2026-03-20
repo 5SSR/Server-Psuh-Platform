@@ -119,7 +119,8 @@ export class WantedService {
                   level: true,
                   tradeCount: true,
                   positiveRate: true,
-                  disputeRate: true
+                  disputeRate: true,
+                refundRate: true
                 }
               }
             }
@@ -152,7 +153,8 @@ export class WantedService {
                 level: true,
                 tradeCount: true,
                 positiveRate: true,
-                disputeRate: true
+                disputeRate: true,
+              refundRate: true
               }
             }
           }
@@ -318,6 +320,7 @@ export class WantedService {
                 tradeCount: true,
                 positiveRate: true,
                 disputeRate: true,
+                refundRate: true,
                 avgDeliveryMinutes: true
               }
             }

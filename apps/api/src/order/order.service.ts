@@ -2,14 +2,17 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Inject,
   NotFoundException,
-  Logger
+  Logger,
+  forwardRef
 } from '@nestjs/common';
 import {
   OrderStatus,
   PayChannel,
   PayStatus,
   Prisma,
+  RiskAction,
   SettlementStatus,
   VerifyResult,
   RefundStatus,
@@ -21,6 +24,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { NoticeService } from '../notice/notice.service';
 import { RiskService } from '../risk/risk.service';
+import { PaymentRefundService } from '../payment/payment-refund.service';
 
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PayOrderDto } from './dto/pay-order.dto';
@@ -68,7 +72,9 @@ export class OrderService {
     private readonly prisma: PrismaService,
     private readonly walletService: WalletService,
     private readonly noticeService: NoticeService,
-    private readonly riskService: RiskService
+    private readonly riskService: RiskService,
+    @Inject(forwardRef(() => PaymentRefundService))
+    private readonly paymentRefundService: PaymentRefundService
   ) {}
 
   private readNonNegativeNumber(name: string, fallback: number) {
@@ -97,6 +103,11 @@ export class OrderService {
     return ['BUYER', 'SELLER', 'SHARED'].includes(payer)
       ? (payer as FeePayerMode)
       : 'SELLER';
+  }
+
+  private shouldFallbackWalletOnChannelRefundFailure() {
+    const value = String(process.env.ORDER_REFUND_FALLBACK_WALLET || 'true').toLowerCase();
+    return value !== 'false' && value !== '0' && value !== 'no';
   }
 
   private normalizeFeePayer(input?: unknown): FeePayerMode {
@@ -272,6 +283,9 @@ export class OrderService {
       actorId: string;
       action: string;
       remarkPrefix: string;
+      riskAction?: RiskAction;
+      riskReviewRequired?: boolean;
+      riskReviewPassed?: boolean | null;
     }
   ) {
     const prefix = input.remarkPrefix ? `${input.remarkPrefix} ` : '';
@@ -290,7 +304,11 @@ export class OrderService {
         payChannel: PayChannel.BALANCE,
         payStatus: PayStatus.UNPAID,
         escrowAmount,
-        status: OrderStatus.PENDING_PAYMENT
+        status: OrderStatus.PENDING_PAYMENT,
+        riskAction: input.riskAction ?? RiskAction.ALLOW,
+        riskReviewRequired: input.riskReviewRequired ?? false,
+        riskReviewPassed:
+          input.riskReviewPassed !== undefined ? input.riskReviewPassed : input.riskReviewRequired ? null : true
       },
       include: { product: true }
     });
@@ -329,9 +347,10 @@ export class OrderService {
       productId: product.id,
       sellerId: product.sellerId
     });
-    if (risk.action === 'BLOCK') {
+    if (risk.action === 'BLOCK' || risk.action === 'LIMIT') {
       throw new ForbiddenException('下单请求触发风控拦截，请联系平台客服处理');
     }
+    const needsManualReview = risk.action === 'REVIEW';
 
     return this.createOrderRecord(this.prisma, {
       buyerId,
@@ -340,7 +359,10 @@ export class OrderService {
       price: new Prisma.Decimal(product.salePrice),
       actorId: buyerId,
       action: 'ORDER_CREATE',
-      remarkPrefix: risk.action !== 'ALLOW' ? `risk=${risk.action}` : ''
+      remarkPrefix: risk.action !== 'ALLOW' ? `risk=${risk.action}` : '',
+      riskAction: risk.action,
+      riskReviewRequired: needsManualReview,
+      riskReviewPassed: needsManualReview ? null : true
     });
   }
 
@@ -421,6 +443,9 @@ export class OrderService {
       if (order.status !== OrderStatus.PENDING_PAYMENT) {
         throw new BadRequestException('当前状态不可支付');
       }
+      if (order.riskReviewRequired && order.riskReviewPassed !== true) {
+        throw new BadRequestException('订单需先通过平台风控审核，暂不可支付');
+      }
 
       const now = new Date();
       // 若余额支付，先冻结买家托管
@@ -486,6 +511,9 @@ export class OrderService {
       if (!order) throw new NotFoundException('订单不存在');
       if (order.payStatus === PayStatus.PAID) {
         return { alreadyPaid: true };
+      }
+      if (order.riskReviewRequired && order.riskReviewPassed !== true) {
+        throw new BadRequestException('订单需先通过平台风控审核，暂不可支付');
       }
       const now = new Date();
 
@@ -567,6 +595,70 @@ export class OrderService {
           remark: this.requirePlatformVerify ? '交付完成，等待平台核验' : '交付完成，进入买家验机'
         }
       });
+    });
+  }
+
+  async deliverByAdmin(orderId: string, adminId: string, dto: DeliverDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          product: {
+            select: {
+              id: true,
+              title: true,
+              code: true,
+              consignment: true
+            }
+          }
+        }
+      });
+      if (!order) throw new NotFoundException('订单不存在');
+      if (order.status !== OrderStatus.PAID_WAITING_DELIVERY) {
+        throw new BadRequestException('当前状态不可交付');
+      }
+      if (!order.product?.consignment) {
+        throw new BadRequestException('仅寄售商品支持平台代交付');
+      }
+
+      await tx.deliveryRecord.create({
+        data: {
+          orderId,
+          providerAccount: dto.providerAccount,
+          panelUrl: dto.panelUrl,
+          loginInfo: dto.loginInfo,
+          remark: dto.remark?.trim()
+            ? `[平台代交付] ${dto.remark.trim()}`
+            : '[平台代交付] 平台已代卖家完成交付'
+        }
+      });
+
+      const nextStatus = this.requirePlatformVerify
+        ? OrderStatus.VERIFYING
+        : OrderStatus.BUYER_CHECKING;
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: nextStatus }
+      });
+
+      await tx.orderLog.create({
+        data: {
+          orderId,
+          action: 'DELIVER_ADMIN',
+          actorType: 'ADMIN',
+          actorId: adminId,
+          remark: this.requirePlatformVerify
+            ? '寄售订单平台代交付完成，等待平台核验'
+            : '寄售订单平台代交付完成，进入买家验机'
+        }
+      });
+
+      return {
+        ok: true,
+        nextStatus,
+        message: '寄售订单平台代交付已完成'
+      };
     });
   }
 
@@ -848,9 +940,13 @@ export class OrderService {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('订单不存在');
       if (order.buyerId !== buyerId) throw new ForbiddenException('无权操作');
-    if (![OrderStatus.PAID_WAITING_DELIVERY, OrderStatus.BUYER_CHECKING].includes(order.status as any)) {
-      throw new BadRequestException('当前状态不可申请退款');
-    }
+      if (
+        ![OrderStatus.PAID_WAITING_DELIVERY, OrderStatus.BUYER_CHECKING].includes(
+          order.status as any
+        )
+      ) {
+        throw new BadRequestException('当前状态不可申请退款');
+      }
 
       await tx.refund.upsert({
         where: { orderId },
@@ -886,10 +982,59 @@ export class OrderService {
   }
 
   async handleRefund(orderId: string, adminId: string, decision: 'APPROVED' | 'REJECTED', remark?: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const refund = await tx.refund.findUnique({ where: { orderId } });
-      if (!refund) throw new NotFoundException('退款记录不存在');
+    const existingRefund = await this.prisma.refund.findUnique({ where: { orderId } });
+    if (!existingRefund) throw new NotFoundException('退款记录不存在');
 
+    let refundExecutionRemark = '';
+    let refundedViaWallet = false;
+    let usedChannel: PayChannel = PayChannel.BALANCE;
+
+    if (decision === 'APPROVED') {
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          payment: {
+            select: {
+              channel: true
+            }
+          }
+        }
+      });
+      if (!order) throw new NotFoundException('订单不存在');
+
+      usedChannel = order.payment?.channel ?? order.payChannel;
+
+      if (usedChannel === PayChannel.BALANCE) {
+        await this.walletService.refundToBuyer(orderId, {
+          memoForNonBalance: '退款入账（余额托管退回）'
+        });
+        refundedViaWallet = true;
+        refundExecutionRemark = '余额托管退款已退回买家钱包';
+      } else {
+        const channelResult = await this.paymentRefundService.attemptRefund(orderId, {
+          reason: remark || '管理员审核通过退款',
+          operatorId: adminId
+        });
+
+        if (channelResult.supported && channelResult.success) {
+          refundExecutionRemark = `原路退款成功（${usedChannel}${channelResult.channelRefundNo ? ` / ${channelResult.channelRefundNo}` : ''}）`;
+        } else {
+          const fallbackEnabled = this.shouldFallbackWalletOnChannelRefundFailure();
+          if (!fallbackEnabled) {
+            throw new BadRequestException(
+              `原路退款失败：${channelResult.reason || '渠道未返回失败原因'}`
+            );
+          }
+          await this.walletService.refundToBuyer(orderId, {
+            memoForNonBalance: `退款入账（${usedChannel} 原路退款失败，退回站内余额）`
+          });
+          refundedViaWallet = true;
+          refundExecutionRemark = `原路退款失败，已退回站内余额（${channelResult.reason || '渠道不支持或失败'}）`;
+        }
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
       await tx.refund.update({
         where: { orderId },
         data: { status: decision, updatedAt: new Date() }
@@ -901,12 +1046,14 @@ export class OrderService {
           action: 'REFUND_DECISION',
           actorType: 'ADMIN',
           actorId: adminId,
-          remark: `${decision} ${remark ?? ''}`.trim()
+          remark:
+            decision === 'APPROVED'
+              ? `${decision} ${refundExecutionRemark} ${remark ?? ''}`.trim()
+              : `${decision} ${remark ?? ''}`.trim()
         }
       });
 
       if (decision === 'APPROVED') {
-        await this.walletService.refundToBuyer(orderId);
         await tx.order.update({
           where: { id: orderId },
           data: {
@@ -914,7 +1061,21 @@ export class OrderService {
             payStatus: PayStatus.REFUNDED
           }
         });
-        this.logger.log(`订单 ${orderId} 退款完成`);
+
+        await tx.payment.updateMany({
+          where: { orderId },
+          data: {
+            payStatus: PayStatus.REFUNDED,
+            failReason:
+              refundedViaWallet && usedChannel !== PayChannel.BALANCE
+                ? 'CHANNEL_REFUND_FAILED_FALLBACK_WALLET'
+                : null
+          }
+        });
+
+        this.logger.log(
+          `订单 ${orderId} 退款完成 channel=${usedChannel} fallbackWallet=${refundedViaWallet}`
+        );
       } else {
         await tx.order.update({
           where: { id: orderId },
@@ -922,6 +1083,14 @@ export class OrderService {
             status: OrderStatus.BUYER_CHECKING
           }
         });
+      }
+
+      const sellerMeta = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { sellerId: true }
+      });
+      if (sellerMeta?.sellerId) {
+        await this.walletService.refreshSellerProfileMetrics(sellerMeta.sellerId, tx);
       }
     });
   }
@@ -1190,6 +1359,69 @@ export class OrderService {
     });
   }
 
+  async reviewOrderRisk(orderId: string, adminId: string, input: { approved: boolean; remark?: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          status: true,
+          payStatus: true,
+          riskReviewRequired: true,
+          riskReviewPassed: true
+        }
+      });
+
+      if (!order) {
+        throw new NotFoundException('订单不存在');
+      }
+      if (!order.riskReviewRequired) {
+        throw new BadRequestException('该订单无需风控审核');
+      }
+      if (order.riskReviewPassed === true) {
+        return {
+          ok: true,
+          message: '该订单已通过风控审核',
+          nextStatus: order.status
+        };
+      }
+      if (order.payStatus === PayStatus.PAID) {
+        throw new BadRequestException('订单已支付，无法再次执行风控审核');
+      }
+
+      const nextStatus = input.approved ? order.status : OrderStatus.CANCELED;
+      const nextRiskPassed = input.approved;
+      const action = input.approved ? 'RISK_REVIEW_PASS' : 'RISK_REVIEW_REJECT';
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: nextStatus,
+          riskReviewPassed: nextRiskPassed,
+          riskReviewedAt: new Date(),
+          riskReviewedBy: adminId,
+          riskReviewRemark: input.remark?.trim() || null
+        }
+      });
+
+      await tx.orderLog.create({
+        data: {
+          orderId,
+          action,
+          actorType: 'ADMIN',
+          actorId: adminId,
+          remark: input.remark?.trim() || undefined
+        }
+      });
+
+      return {
+        ok: true,
+        message: input.approved ? '风控审核通过，订单可继续支付' : '风控审核拒绝，订单已关闭',
+        nextStatus
+      };
+    });
+  }
+
   async orderTimeline(orderId: string) {
     return this.prisma.orderLog.findMany({
       where: { orderId },
@@ -1295,7 +1527,7 @@ export class OrderService {
         where,
         include: {
           product: {
-            select: { id: true, title: true, code: true }
+            select: { id: true, title: true, code: true, consignment: true }
           },
           buyer: {
             select: { id: true, email: true }

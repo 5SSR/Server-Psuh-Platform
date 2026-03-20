@@ -50,6 +50,10 @@ export default async function StorePage({ params }: { params: { sellerId: string
           <p className="metric-label">纠纷率</p>
           <p className="metric-value">{fmtRate(profile?.disputeRate)}</p>
         </article>
+        <article className="metric-card">
+          <p className="metric-label">退款率</p>
+          <p className="metric-value">{fmtRate(profile?.refundRate)}</p>
+        </article>
       </section>
 
       <section className="card stack-16">

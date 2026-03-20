@@ -280,7 +280,8 @@ export class BargainService {
                   level: true,
                   tradeCount: true,
                   positiveRate: true,
-                  disputeRate: true
+                  disputeRate: true,
+                refundRate: true
                 }
               }
             }
@@ -294,7 +295,8 @@ export class BargainService {
                   level: true,
                   tradeCount: true,
                   positiveRate: true,
-                  disputeRate: true
+                  disputeRate: true,
+                refundRate: true
                 }
               }
             }
@@ -384,7 +386,8 @@ export class BargainService {
                   level: true,
                   tradeCount: true,
                   positiveRate: true,
-                  disputeRate: true
+                  disputeRate: true,
+                refundRate: true
                 }
               }
             }
@@ -399,7 +402,8 @@ export class BargainService {
                   level: true,
                   tradeCount: true,
                   positiveRate: true,
-                  disputeRate: true
+                  disputeRate: true,
+                refundRate: true
                 }
               }
             }
@@ -475,6 +479,7 @@ export class BargainService {
                 tradeCount: true,
                 positiveRate: true,
                 disputeRate: true,
+                refundRate: true,
                 avgDeliveryMinutes: true
               }
             }
@@ -492,6 +497,7 @@ export class BargainService {
                 tradeCount: true,
                 positiveRate: true,
                 disputeRate: true,
+                refundRate: true,
                 avgDeliveryMinutes: true
               }
             }
@@ -975,6 +981,7 @@ export class BargainService {
                 tradeCount: true,
                 positiveRate: true,
                 disputeRate: true,
+                refundRate: true,
                 avgDeliveryMinutes: true
               }
             }
@@ -990,6 +997,7 @@ export class BargainService {
                 tradeCount: true,
                 positiveRate: true,
                 disputeRate: true,
+                refundRate: true,
                 avgDeliveryMinutes: true
               }
             }

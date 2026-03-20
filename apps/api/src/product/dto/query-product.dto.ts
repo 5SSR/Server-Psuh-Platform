@@ -15,7 +15,9 @@ export const PRODUCT_SORT_VALUES = [
   'price_asc',
   'price_desc',
   'expire_asc',
-  'seller_desc'
+  'seller_desc',
+  'views_desc',
+  'hot_desc'
 ] as const;
 
 export type ProductSortBy = (typeof PRODUCT_SORT_VALUES)[number];
@@ -36,6 +38,10 @@ export class QueryProductDto extends PaginationDto {
   @IsOptional()
   @IsString()
   lineType?: string;
+
+  @IsOptional()
+  @IsString()
+  diskType?: string;
 
   @IsOptional()
   @IsEnum(DeliveryType)
@@ -82,6 +88,10 @@ export class QueryProductDto extends PaginationDto {
   urgentOnly?: string;
 
   @IsOptional()
+  @IsString()
+  premiumOnly?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   minCpu?: number;
@@ -104,12 +114,37 @@ export class QueryProductDto extends PaginationDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  minTraffic?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  minIp?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  minDdos?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   minPrice?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   maxPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  minPremiumRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  maxPremiumRate?: number;
 
   @IsOptional()
   @IsEnum(ProductStatus)

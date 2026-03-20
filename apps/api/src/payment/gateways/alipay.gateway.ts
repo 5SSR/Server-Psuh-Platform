@@ -1,12 +1,49 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PayChannel } from '@prisma/client';
 
-import { PaymentGateway, RemoteTransaction } from './payment-gateway.interface';
+import {
+  PaymentGateway,
+  RefundRequest,
+  RefundResult,
+  RemoteTransaction
+} from './payment-gateway.interface';
 
 @Injectable()
 export class AlipayGateway implements PaymentGateway {
   readonly channel = PayChannel.ALIPAY;
   private readonly logger = new Logger(AlipayGateway.name);
+
+  private parseRefundResult(body: Record<string, unknown>): RefundResult {
+    const successRaw = body.success ?? body.ok ?? body.refunded;
+    const success =
+      typeof successRaw === 'boolean'
+        ? successRaw
+        : typeof successRaw === 'number'
+          ? successRaw > 0
+          : typeof successRaw === 'string'
+            ? ['true', 'ok', 'success', 'succeeded'].includes(successRaw.toLowerCase())
+            : false;
+    const channelRefundNo =
+      typeof body.refundNo === 'string'
+        ? body.refundNo
+        : typeof body.refundId === 'string'
+          ? body.refundId
+          : typeof body.outRefundNo === 'string'
+            ? body.outRefundNo
+            : undefined;
+    const message =
+      typeof body.message === 'string'
+        ? body.message
+        : typeof body.msg === 'string'
+          ? body.msg
+          : undefined;
+    return {
+      success,
+      channelRefundNo,
+      message,
+      raw: body
+    };
+  }
 
   private normalize(items: unknown): RemoteTransaction[] {
     if (!Array.isArray(items)) return [];
@@ -72,6 +109,54 @@ export class AlipayGateway implements PaymentGateway {
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.error(`ALIPAY 拉取对账失败: ${reason}`);
       return [];
+    }
+  }
+
+  async refundTransaction(request: RefundRequest): Promise<RefundResult> {
+    const endpoint = process.env.ALIPAY_REFUND_API;
+    if (!endpoint) {
+      return { success: false, message: 'ALIPAY_REFUND_API 未配置' };
+    }
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...(process.env.ALIPAY_REFUND_TOKEN
+            ? { Authorization: `Bearer ${process.env.ALIPAY_REFUND_TOKEN}` }
+            : {})
+        },
+        body: JSON.stringify({
+          orderId: request.orderId,
+          amount: request.amount,
+          currency: request.currency || 'CNY',
+          tradeNo: request.tradeNo,
+          thirdTradeNo: request.thirdTradeNo,
+          reason: request.reason,
+          operatorId: request.operatorId
+        })
+      });
+      const text = await res.text();
+      let body: Record<string, unknown> = {};
+      try {
+        body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+      } catch {
+        body = {};
+      }
+      if (!res.ok) {
+        this.logger.error(`ALIPAY 退款接口失败 status=${res.status} body=${text.slice(0, 120)}`);
+        return {
+          success: false,
+          message: `HTTP_${res.status}`,
+          raw: text
+        };
+      }
+      return this.parseRefundResult(body);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.error(`ALIPAY 发起退款失败: ${reason}`);
+      return { success: false, message: reason };
     }
   }
 }

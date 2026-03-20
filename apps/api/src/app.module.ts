@@ -23,6 +23,7 @@ import { BargainModule } from './bargain/bargain.module';
 import { ConsignmentModule } from './consignment/consignment.module';
 import { StoreModule } from './store/store.module';
 import { OpenApiModule } from './open-api/open-api.module';
+import { SupportModule } from './support/support.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { OpenApiModule } from './open-api/open-api.module';
     ConsignmentModule,
     StoreModule,
     OpenApiModule,
+    SupportModule,
     AdminModule
   ],
   controllers: [AppController],

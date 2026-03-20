@@ -1,25 +1,37 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-const LOCALE_KEY = 'idc_locale';
+import {
+  LOCALE_KEY,
+  persistLocale,
+  resolveClientLocale,
+  toLocalePath
+} from '../lib/locale';
 
 export default function LocaleSwitch() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [locale, setLocale] = useState('zh-CN');
 
   useEffect(() => {
-    const saved = localStorage.getItem(LOCALE_KEY);
-    if (saved) {
-      setLocale(saved);
-      document.documentElement.lang = saved;
-    }
-  }, []);
+    setLocale(resolveClientLocale(pathname));
+  }, [pathname]);
 
   const changeLocale = (value: string) => {
-    setLocale(value);
-    localStorage.setItem(LOCALE_KEY, value);
-    document.documentElement.lang = value;
-    window.dispatchEvent(new CustomEvent('locale-change', { detail: value }));
+    const normalized = value.startsWith('en') ? 'en-US' : 'zh-CN';
+    setLocale(normalized);
+    persistLocale(normalized);
+    localStorage.setItem(LOCALE_KEY, normalized);
+
+    const currentPath = pathname || '/';
+    const localizedPath = toLocalePath(currentPath, normalized);
+    const query = searchParams?.toString();
+    const target = query ? `${localizedPath}?${query}` : localizedPath;
+    router.push(target as any);
+    router.refresh();
   };
 
   return (

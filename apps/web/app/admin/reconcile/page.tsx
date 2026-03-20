@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  PAY_CHANNEL_LABEL,
+  RECONCILE_DIFF_TYPE_LABEL,
+  RECONCILE_ITEM_STATUS_LABEL,
+  RECONCILE_TASK_STATUS_LABEL,
+  labelByMap
+} from '../../../lib/admin-enums';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -124,8 +131,8 @@ export default function AdminReconcilePage() {
         <div className="card">
           <label>渠道</label>
           <select value={channel} onChange={(e) => setChannel(e.target.value)}>
-            <option value="ALIPAY">ALIPAY</option>
-            <option value="WECHAT">WECHAT</option>
+            <option value="ALIPAY">支付宝</option>
+            <option value="WECHAT">微信支付</option>
             <option value="USDT">USDT</option>
           </select>
         </div>
@@ -146,7 +153,10 @@ export default function AdminReconcilePage() {
         <div className="cards">
           {tasks.map((task) => (
             <article key={task.id} className="card" onClick={() => setTaskId(task.id)}>
-              <p><strong>{task.channel}</strong> / {task.status}</p>
+              <p>
+                <strong>{labelByMap(task.channel, PAY_CHANNEL_LABEL, task.channel)}</strong> /{' '}
+                {labelByMap(task.status, RECONCILE_TASK_STATUS_LABEL, task.status)}
+              </p>
               <p className="muted">日期：{new Date(task.bizDate).toLocaleDateString('zh-CN')}</p>
               <p className="muted">差异：{task.summary?.diffCount ?? 0}</p>
             </article>
@@ -160,7 +170,10 @@ export default function AdminReconcilePage() {
           <div className="cards">
             {items.map((item) => (
               <article key={item.id} className="card">
-                <p><strong>{item.diffType}</strong> / {item.status}</p>
+                <p>
+                  <strong>{labelByMap(item.diffType, RECONCILE_DIFF_TYPE_LABEL, item.diffType)}</strong> /{' '}
+                  {labelByMap(item.status, RECONCILE_ITEM_STATUS_LABEL, item.status)}
+                </p>
                 <p className="muted">订单：{item.orderId || '-'}</p>
                 <p className="muted">交易号：{item.tradeNo || '-'}</p>
                 <p className="muted">本地金额：{item.localAmount == null ? '-' : Number(item.localAmount).toFixed(2)}</p>

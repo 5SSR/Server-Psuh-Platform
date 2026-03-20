@@ -9,6 +9,14 @@ import {
   formatDateTime,
   formatMoney
 } from '../../../components/admin/console-primitives';
+import {
+  FEE_PAYER_LABEL,
+  PRODUCT_AUDIT_STATUS_LABEL,
+  PRODUCT_CATEGORY_LABEL,
+  PRODUCT_STATUS_LABEL,
+  RISK_LEVEL_LABEL,
+  labelByMap
+} from '../../../lib/admin-enums';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -20,11 +28,36 @@ type Product = {
   code: string;
   category: string;
   region: string;
+  datacenter?: string | null;
   status?: string;
   lineType?: string | null;
+  providerName?: string | null;
+  providerUrl?: string | null;
+  cpuModel?: string | null;
+  cpuCores?: number | null;
+  memoryGb?: number | null;
+  diskGb?: number | null;
+  diskType?: string | null;
+  bandwidthMbps?: number | null;
+  trafficLimit?: number | null;
+  ipCount?: number | null;
+  ddos?: number | null;
+  purchasePrice?: number | string | null;
   salePrice: number | string;
+  minAcceptPrice?: number | string | null;
+  renewPrice?: number | string | null;
+  expireAt?: string | null;
+  negotiable?: boolean;
   riskLevel?: string;
   riskTags?: string[] | null;
+  deliveryType?: string;
+  feePayer?: string;
+  canChangeEmail?: boolean;
+  canChangeRealname?: boolean;
+  canTest?: boolean;
+  canTransfer?: boolean;
+  abuseHistory?: boolean;
+  accountRecallRisk?: boolean;
   isPremium?: boolean;
   premiumRate?: number | string | null;
   consignment?: boolean;
@@ -38,6 +71,7 @@ type Product = {
       level: number;
       tradeCount: number;
       disputeRate: number;
+      refundRate?: number;
       positiveRate: number;
     } | null;
   } | null;
@@ -82,10 +116,8 @@ function riskTone(level?: string) {
 }
 
 function riskLabel(level?: string) {
-  if (level === 'HIGH') return '高风险';
-  if (level === 'LOW') return '低风险';
-  if (level === 'MEDIUM') return '中风险';
-  return level || '未标注';
+  if (!level) return '未标注';
+  return labelByMap(level, RISK_LEVEL_LABEL, '未标注');
 }
 
 function formatRate(value?: number | null) {
@@ -107,6 +139,62 @@ type MarketDraft = {
   premiumRate: string;
 };
 
+type CoreDraft = {
+  title: string;
+  category: string;
+  region: string;
+  datacenter: string;
+  lineType: string;
+  providerName: string;
+  providerUrl: string;
+  cpuModel: string;
+  cpuCores: string;
+  memoryGb: string;
+  diskGb: string;
+  diskType: string;
+  bandwidthMbps: string;
+  trafficLimit: string;
+  ipCount: string;
+  ddos: string;
+  salePrice: string;
+  purchasePrice: string;
+  minAcceptPrice: string;
+  renewPrice: string;
+  expireAt: string;
+  deliveryType: string;
+  feePayer: string;
+  negotiable: boolean;
+  consignment: boolean;
+  canChangeEmail: boolean;
+  canChangeRealname: boolean;
+  canTest: boolean;
+  canTransfer: boolean;
+  riskLevel: string;
+  riskTags: string;
+  abuseHistory: boolean;
+  accountRecallRisk: boolean;
+  description: string;
+  status: string;
+};
+
+const DELIVERY_TYPE_LABEL: Record<string, string> = {
+  FULL_ACCOUNT: '整账号交付',
+  PANEL_TRANSFER: '面板转移',
+  SUB_ACCOUNT: '子账号交付',
+  EMAIL_CHANGE: '邮箱改绑'
+};
+
+function decimalToInput(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === '') return '';
+  const n = Number(value);
+  return Number.isFinite(n) ? String(n) : '';
+}
+
+function intToInput(value: number | null | undefined) {
+  if (value === null || value === undefined) return '';
+  return Number.isFinite(value) ? String(Math.trunc(value)) : '';
+}
+
 export default function AdminProductsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -121,6 +209,8 @@ export default function AdminProductsPage() {
   const [marketOnlyFeatured, setMarketOnlyFeatured] = useState(false);
   const [marketSelectedId, setMarketSelectedId] = useState('');
   const [marketDrafts, setMarketDrafts] = useState<Record<string, MarketDraft>>({});
+  const [coreDrafts, setCoreDrafts] = useState<Record<string, CoreDraft>>({});
+  const [coreSaving, setCoreSaving] = useState(false);
 
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState('');
@@ -164,6 +254,46 @@ export default function AdminProductsPage() {
     };
   }, []);
 
+  const buildCoreDraft = useCallback((item: Product): CoreDraft => {
+    return {
+      title: item.title || '',
+      category: item.category || 'VPS',
+      region: item.region || '',
+      datacenter: item.datacenter || '',
+      lineType: item.lineType || '',
+      providerName: item.providerName || '',
+      providerUrl: item.providerUrl || '',
+      cpuModel: item.cpuModel || '',
+      cpuCores: intToInput(item.cpuCores),
+      memoryGb: intToInput(item.memoryGb),
+      diskGb: intToInput(item.diskGb),
+      diskType: item.diskType || '',
+      bandwidthMbps: intToInput(item.bandwidthMbps),
+      trafficLimit: intToInput(item.trafficLimit),
+      ipCount: intToInput(item.ipCount),
+      ddos: intToInput(item.ddos),
+      salePrice: decimalToInput(item.salePrice),
+      purchasePrice: decimalToInput(item.purchasePrice),
+      minAcceptPrice: decimalToInput(item.minAcceptPrice),
+      renewPrice: decimalToInput(item.renewPrice),
+      expireAt: item.expireAt ? item.expireAt.slice(0, 10) : '',
+      deliveryType: item.deliveryType || 'FULL_ACCOUNT',
+      feePayer: item.feePayer || 'SELLER',
+      negotiable: Boolean(item.negotiable),
+      consignment: Boolean(item.consignment),
+      canChangeEmail: Boolean(item.canChangeEmail),
+      canChangeRealname: Boolean(item.canChangeRealname),
+      canTest: Boolean(item.canTest),
+      canTransfer: Boolean(item.canTransfer),
+      riskLevel: item.riskLevel || 'MEDIUM',
+      riskTags: readRiskTagsText(item.riskTags),
+      abuseHistory: Boolean(item.abuseHistory),
+      accountRecallRisk: Boolean(item.accountRecallRisk),
+      description: item.description || '',
+      status: item.status || 'ONLINE'
+    };
+  }, []);
+
   const loadMarket = useCallback(async () => {
     if (!token) return;
     setMarketLoading(true);
@@ -175,12 +305,17 @@ export default function AdminProductsPage() {
       if (!res.ok) throw new Error(data.message || '读取运营商品失败');
       const list: Product[] = data.list || [];
       setMarketProducts(list);
-      setMarketDrafts((prev) => {
-        const next = { ...prev };
+      setMarketDrafts(() => {
+        const next: Record<string, MarketDraft> = {};
         for (const item of list) {
-          if (!next[item.id]) {
-            next[item.id] = buildMarketDraft(item);
-          }
+          next[item.id] = buildMarketDraft(item);
+        }
+        return next;
+      });
+      setCoreDrafts(() => {
+        const next: Record<string, CoreDraft> = {};
+        for (const item of list) {
+          next[item.id] = buildCoreDraft(item);
         }
         return next;
       });
@@ -189,7 +324,7 @@ export default function AdminProductsPage() {
     } finally {
       setMarketLoading(false);
     }
-  }, [buildMarketDraft, token]);
+  }, [buildCoreDraft, buildMarketDraft, token]);
 
   useEffect(() => {
     load();
@@ -301,6 +436,16 @@ export default function AdminProductsPage() {
 
   const selectedMarketDraft = ensureMarketDraft(selectedMarket);
 
+  const ensureCoreDraft = useCallback(
+    (item: Product | null) => {
+      if (!item) return null;
+      return coreDrafts[item.id] || buildCoreDraft(item);
+    },
+    [buildCoreDraft, coreDrafts]
+  );
+
+  const selectedCoreDraft = ensureCoreDraft(selectedMarket);
+
   const updateMarketField = (id: string, patch: Partial<MarketDraft>) => {
     setMarketDrafts((prev) => {
       const found = marketProducts.find((p) => p.id === id);
@@ -323,6 +468,74 @@ export default function AdminProductsPage() {
         }
       };
     });
+  };
+
+  const updateCoreField = (id: string, patch: Partial<CoreDraft>) => {
+    setCoreDrafts((prev) => {
+      const found = marketProducts.find((p) => p.id === id);
+      const base: CoreDraft =
+        prev[id] ||
+        (found
+          ? buildCoreDraft(found)
+          : {
+              title: '',
+              category: 'VPS',
+              region: '',
+              datacenter: '',
+              lineType: '',
+              providerName: '',
+              providerUrl: '',
+              cpuModel: '',
+              cpuCores: '',
+              memoryGb: '',
+              diskGb: '',
+              diskType: '',
+              bandwidthMbps: '',
+              trafficLimit: '',
+              ipCount: '',
+              ddos: '',
+              salePrice: '',
+              purchasePrice: '',
+              minAcceptPrice: '',
+              renewPrice: '',
+              expireAt: '',
+              deliveryType: 'FULL_ACCOUNT',
+              feePayer: 'SELLER',
+              negotiable: false,
+              consignment: false,
+              canChangeEmail: false,
+              canChangeRealname: false,
+              canTest: false,
+              canTransfer: false,
+              riskLevel: 'MEDIUM',
+              riskTags: '',
+              abuseHistory: false,
+              accountRecallRisk: false,
+              description: '',
+              status: 'ONLINE'
+            });
+      return {
+        ...prev,
+        [id]: {
+          ...base,
+          ...patch
+        }
+      };
+    });
+  };
+
+  const parseOptionalNumber = (text: string) => {
+    const value = text.trim();
+    if (!value) return undefined;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : Number.NaN;
+  };
+
+  const parseNullableNumber = (text: string) => {
+    const value = text.trim();
+    if (!value) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : Number.NaN;
   };
 
   const saveMarketConfig = async () => {
@@ -365,6 +578,108 @@ export default function AdminProductsPage() {
     }
   };
 
+  const saveCoreConfig = async () => {
+    if (!token || !selectedMarket || !selectedCoreDraft) return;
+    if (!selectedCoreDraft.title.trim()) {
+      setError('商品标题不能为空');
+      return;
+    }
+    if (!selectedCoreDraft.region.trim()) {
+      setError('地区不能为空');
+      return;
+    }
+    const salePrice = parseOptionalNumber(selectedCoreDraft.salePrice);
+    if (!Number.isFinite(salePrice)) {
+      setError('售价必须是有效数字');
+      return;
+    }
+
+    const numericPayload = {
+      cpuCores: parseOptionalNumber(selectedCoreDraft.cpuCores),
+      memoryGb: parseOptionalNumber(selectedCoreDraft.memoryGb),
+      diskGb: parseOptionalNumber(selectedCoreDraft.diskGb),
+      bandwidthMbps: parseOptionalNumber(selectedCoreDraft.bandwidthMbps),
+      trafficLimit: parseOptionalNumber(selectedCoreDraft.trafficLimit),
+      ipCount: parseOptionalNumber(selectedCoreDraft.ipCount),
+      ddos: parseOptionalNumber(selectedCoreDraft.ddos)
+    };
+    if (Object.values(numericPayload).some((v) => Number.isNaN(v))) {
+      setError('配置中的数字字段格式不正确');
+      return;
+    }
+
+    const purchasePrice = parseNullableNumber(selectedCoreDraft.purchasePrice);
+    const minAcceptPrice = parseNullableNumber(selectedCoreDraft.minAcceptPrice);
+    const renewPrice = parseNullableNumber(selectedCoreDraft.renewPrice);
+    if ([purchasePrice, minAcceptPrice, renewPrice].some((v) => Number.isNaN(v))) {
+      setError('交易价格相关字段格式不正确');
+      return;
+    }
+
+    setCoreSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const riskTags = selectedCoreDraft.riskTags
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const res = await fetch(`${API_BASE}/admin/products/${selectedMarket.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: selectedCoreDraft.title.trim(),
+          category: selectedCoreDraft.category,
+          region: selectedCoreDraft.region.trim(),
+          datacenter: selectedCoreDraft.datacenter,
+          lineType: selectedCoreDraft.lineType,
+          providerName: selectedCoreDraft.providerName,
+          providerUrl: selectedCoreDraft.providerUrl,
+          cpuModel: selectedCoreDraft.cpuModel,
+          cpuCores: numericPayload.cpuCores,
+          memoryGb: numericPayload.memoryGb,
+          diskGb: numericPayload.diskGb,
+          diskType: selectedCoreDraft.diskType,
+          bandwidthMbps: numericPayload.bandwidthMbps,
+          trafficLimit: numericPayload.trafficLimit,
+          ipCount: numericPayload.ipCount,
+          ddos: numericPayload.ddos,
+          salePrice,
+          purchasePrice,
+          minAcceptPrice,
+          renewPrice,
+          expireAt: selectedCoreDraft.expireAt || null,
+          status: selectedCoreDraft.status,
+          deliveryType: selectedCoreDraft.deliveryType,
+          feePayer: selectedCoreDraft.feePayer,
+          negotiable: selectedCoreDraft.negotiable,
+          consignment: selectedCoreDraft.consignment,
+          canChangeEmail: selectedCoreDraft.canChangeEmail,
+          canChangeRealname: selectedCoreDraft.canChangeRealname,
+          canTest: selectedCoreDraft.canTest,
+          canTransfer: selectedCoreDraft.canTransfer,
+          riskLevel: selectedCoreDraft.riskLevel,
+          riskTags,
+          abuseHistory: selectedCoreDraft.abuseHistory,
+          accountRecallRisk: selectedCoreDraft.accountRecallRisk,
+          description: selectedCoreDraft.description.trim() || null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '保存核心字段失败');
+      setMessage('商品核心字段已更新');
+      await loadMarket();
+      await load();
+    } catch (e: any) {
+      setError(e.message || '保存核心字段失败');
+    } finally {
+      setCoreSaving(false);
+    }
+  };
+
   return (
     <main className="page page-shell admin-console-page">
       <ConsolePageHeader
@@ -399,7 +714,7 @@ export default function AdminProductsPage() {
               <option value="">全部</option>
               {categoryOptions.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {labelByMap(item, PRODUCT_CATEGORY_LABEL, item)}
                 </option>
               ))}
             </select>
@@ -452,7 +767,7 @@ export default function AdminProductsPage() {
                         <p className="console-row-sub">编号：{item.code}</p>
                       </td>
                       <td data-label="类型 / 地区">
-                        <div className="console-row-primary">{item.category}</div>
+                        <div className="console-row-primary">{labelByMap(item.category, PRODUCT_CATEGORY_LABEL, item.category)}</div>
                         <p className="console-row-sub">
                           {item.region || '-'} · {item.lineType || '线路未标注'}
                         </p>
@@ -570,7 +885,11 @@ export default function AdminProductsPage() {
               </div>
               <div className="spec-item">
                 <p className="label">历史审核结果</p>
-                <p className="value">{selectedAudit?.status || '暂无记录'}</p>
+                <p className="value">
+                  {selectedAudit?.status
+                    ? labelByMap(selectedAudit.status, PRODUCT_AUDIT_STATUS_LABEL, selectedAudit.status)
+                    : '暂无记录'}
+                </p>
               </div>
             </div>
 
@@ -582,7 +901,7 @@ export default function AdminProductsPage() {
             {selectedConsignment?.sellerNote ? <p className="muted">寄售申请说明：{selectedConsignment.sellerNote}</p> : null}
             {selectedAudit?.reason ? <p className="muted">上次商品审核备注：{selectedAudit.reason}</p> : null}
             <p className="muted">
-              卖家履约：好评率 {formatRate(selectedProduct.seller?.sellerProfile?.positiveRate)} · 纠纷率 {formatRate(selectedProduct.seller?.sellerProfile?.disputeRate)}
+              卖家履约：好评率 {formatRate(selectedProduct.seller?.sellerProfile?.positiveRate)} · 纠纷率 {formatRate(selectedProduct.seller?.sellerProfile?.disputeRate)} · 退款率 {formatRate(selectedProduct.seller?.sellerProfile?.refundRate)}
             </p>
 
             <div className="form">
@@ -634,7 +953,7 @@ export default function AdminProductsPage() {
               <option value="">全部</option>
               {marketStatusOptions.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {labelByMap(item, PRODUCT_STATUS_LABEL, item)}
                 </option>
               ))}
             </select>
@@ -683,7 +1002,7 @@ export default function AdminProductsPage() {
                     </td>
                     <td data-label="状态">
                       <StatusBadge tone={item.status === 'ONLINE' ? 'success' : item.status === 'OFFLINE' ? 'warning' : 'default'}>
-                        {item.status || '未知'}
+                        {labelByMap(item.status, PRODUCT_STATUS_LABEL, '未知')}
                       </StatusBadge>
                     </td>
                     <td data-label="风险标记">
@@ -746,7 +1065,7 @@ export default function AdminProductsPage() {
               </div>
               <div className="spec-item">
                 <p className="label">当前状态</p>
-                <p className="value">{selectedMarket.status || 'UNKNOWN'}</p>
+                <p className="value">{labelByMap(selectedMarket.status, PRODUCT_STATUS_LABEL, '未知状态')}</p>
               </div>
               <div className="spec-item">
                 <p className="label">当前风险标签</p>
@@ -760,9 +1079,9 @@ export default function AdminProductsPage() {
                   value={selectedMarketDraft.status}
                   onChange={(e) => updateMarketField(selectedMarket.id, { status: e.target.value })}
                 >
-                  <option value="ONLINE">ONLINE</option>
-                  <option value="OFFLINE">OFFLINE</option>
-                  <option value="PENDING">PENDING</option>
+                  <option value="ONLINE">上架中</option>
+                  <option value="OFFLINE">已下架</option>
+                  <option value="PENDING">待审核</option>
                 </select>
               </div>
               <div className="field">
@@ -771,9 +1090,9 @@ export default function AdminProductsPage() {
                   value={selectedMarketDraft.riskLevel}
                   onChange={(e) => updateMarketField(selectedMarket.id, { riskLevel: e.target.value })}
                 >
-                  <option value="LOW">LOW</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="HIGH">HIGH</option>
+                  <option value="LOW">低风险</option>
+                  <option value="MEDIUM">中风险</option>
+                  <option value="HIGH">高风险</option>
                 </select>
               </div>
               <div className="field">
@@ -809,6 +1128,410 @@ export default function AdminProductsPage() {
             <div className="actions">
               <button className="btn primary" type="button" onClick={saveMarketConfig} disabled={marketLoading}>
                 {marketLoading ? '保存中...' : '保存运营配置'}
+              </button>
+            </div>
+          </>
+        )}
+      </ConsolePanel>
+
+      <ConsolePanel
+        title="详情操作区 · 商品核心字段编辑"
+        description="维护地区、线路、配置参数、交付属性与风险属性，保存后会同步影响前台详情与交易流程。"
+        className="console-detail stack-12"
+      >
+        {!selectedMarket || !selectedCoreDraft ? (
+          <ConsoleEmpty text="请选择一条运营商品记录进行核心字段维护" />
+        ) : (
+          <>
+            <div className="console-alert">
+              核心字段会直接影响下单决策与履约风险，请在保存前核对配置真实性、到期时间与交付能力。
+            </div>
+
+            <div className="console-filter-grid">
+              <div className="field">
+                <label>商品标题</label>
+                <input
+                  value={selectedCoreDraft.title}
+                  onChange={(e) => updateCoreField(selectedMarket.id, { title: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>商品类型</label>
+                <select
+                  value={selectedCoreDraft.category}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { category: e.target.value })
+                  }
+                >
+                  {Object.entries(PRODUCT_CATEGORY_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>地区</label>
+                <input
+                  value={selectedCoreDraft.region}
+                  onChange={(e) => updateCoreField(selectedMarket.id, { region: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>线路</label>
+                <input
+                  value={selectedCoreDraft.lineType}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { lineType: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="console-filter-grid">
+              <div className="field">
+                <label>机房/数据中心</label>
+                <input
+                  value={selectedCoreDraft.datacenter}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { datacenter: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>服务商名称</label>
+                <input
+                  value={selectedCoreDraft.providerName}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { providerName: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>服务商链接</label>
+                <input
+                  value={selectedCoreDraft.providerUrl}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { providerUrl: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>到期时间</label>
+                <input
+                  type="date"
+                  value={selectedCoreDraft.expireAt}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { expireAt: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="console-filter-grid">
+              <div className="field">
+                <label>CPU 型号</label>
+                <input
+                  value={selectedCoreDraft.cpuModel}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { cpuModel: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>CPU 核心数</label>
+                <input
+                  value={selectedCoreDraft.cpuCores}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { cpuCores: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>内存(GB)</label>
+                <input
+                  value={selectedCoreDraft.memoryGb}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { memoryGb: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>磁盘(GB)</label>
+                <input
+                  value={selectedCoreDraft.diskGb}
+                  onChange={(e) => updateCoreField(selectedMarket.id, { diskGb: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="console-filter-grid">
+              <div className="field">
+                <label>磁盘类型</label>
+                <input
+                  value={selectedCoreDraft.diskType}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { diskType: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>带宽(Mbps)</label>
+                <input
+                  value={selectedCoreDraft.bandwidthMbps}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { bandwidthMbps: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>流量上限(GB)</label>
+                <input
+                  value={selectedCoreDraft.trafficLimit}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { trafficLimit: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>IP 数量</label>
+                <input
+                  value={selectedCoreDraft.ipCount}
+                  onChange={(e) => updateCoreField(selectedMarket.id, { ipCount: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="console-filter-grid">
+              <div className="field">
+                <label>DDoS 防护(Gbps)</label>
+                <input
+                  value={selectedCoreDraft.ddos}
+                  onChange={(e) => updateCoreField(selectedMarket.id, { ddos: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>销售价</label>
+                <input
+                  value={selectedCoreDraft.salePrice}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { salePrice: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>采购价（可空）</label>
+                <input
+                  value={selectedCoreDraft.purchasePrice}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { purchasePrice: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>最低接受价（可空）</label>
+                <input
+                  value={selectedCoreDraft.minAcceptPrice}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { minAcceptPrice: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="console-filter-grid">
+              <div className="field">
+                <label>续费价（可空）</label>
+                <input
+                  value={selectedCoreDraft.renewPrice}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { renewPrice: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>商品状态</label>
+                <select
+                  value={selectedCoreDraft.status}
+                  onChange={(e) => updateCoreField(selectedMarket.id, { status: e.target.value })}
+                >
+                  {Object.entries(PRODUCT_STATUS_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>交付方式</label>
+                <select
+                  value={selectedCoreDraft.deliveryType}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { deliveryType: e.target.value })
+                  }
+                >
+                  {Object.entries(DELIVERY_TYPE_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>手续费承担</label>
+                <select
+                  value={selectedCoreDraft.feePayer}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { feePayer: e.target.value })
+                  }
+                >
+                  {Object.entries(FEE_PAYER_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="console-filter-grid">
+              <div className="field">
+                <label>风险等级</label>
+                <select
+                  value={selectedCoreDraft.riskLevel}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { riskLevel: e.target.value })
+                  }
+                >
+                  {Object.entries(RISK_LEVEL_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field" style={{ gridColumn: 'span 3' }}>
+                <label>风险标签（逗号分隔）</label>
+                <input
+                  value={selectedCoreDraft.riskTags}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { riskTags: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="form">
+              <label>商品说明</label>
+              <textarea
+                rows={4}
+                value={selectedCoreDraft.description}
+                onChange={(e) =>
+                  updateCoreField(selectedMarket.id, { description: e.target.value })
+                }
+                placeholder="可补充测试策略、迁移说明、风控提示等"
+              />
+            </div>
+
+            <div className="actions">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.negotiable}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { negotiable: e.target.checked })
+                  }
+                />{' '}
+                支持议价
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.consignment}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { consignment: e.target.checked })
+                  }
+                />{' '}
+                启用寄售
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.canChangeEmail}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { canChangeEmail: e.target.checked })
+                  }
+                />{' '}
+                可改邮箱
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.canChangeRealname}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { canChangeRealname: e.target.checked })
+                  }
+                />{' '}
+                可改实名
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.canTest}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { canTest: e.target.checked })
+                  }
+                />{' '}
+                支持测试
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.canTransfer}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { canTransfer: e.target.checked })
+                  }
+                />{' '}
+                支持过户
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.abuseHistory}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { abuseHistory: e.target.checked })
+                  }
+                />{' '}
+                存在滥用历史
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedCoreDraft.accountRecallRisk}
+                  onChange={(e) =>
+                    updateCoreField(selectedMarket.id, { accountRecallRisk: e.target.checked })
+                  }
+                />{' '}
+                账号找回风险
+              </label>
+            </div>
+
+            <div className="actions">
+              <button className="btn primary" type="button" onClick={saveCoreConfig} disabled={coreSaving}>
+                {coreSaving ? '保存中...' : '保存核心字段'}
+              </button>
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={coreSaving}
+                onClick={() =>
+                  setCoreDrafts((prev) => ({
+                    ...prev,
+                    [selectedMarket.id]: buildCoreDraft(selectedMarket)
+                  }))
+                }
+              >
+                重置为当前值
               </button>
             </div>
           </>

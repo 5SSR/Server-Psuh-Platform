@@ -16,11 +16,17 @@ type OrderItem = {
   id: string;
   status: string;
   payStatus: string;
+  riskAction?: string;
+  riskReviewRequired?: boolean;
+  riskReviewPassed?: boolean | null;
+  riskReviewedAt?: string | null;
+  riskReviewRemark?: string | null;
   price: number | string;
   product?: {
     id: string;
     title: string;
     code: string;
+    consignment?: boolean;
   };
   buyer?: {
     email: string;
@@ -64,6 +70,13 @@ type VerifyForm = {
   risk: string;
 };
 
+type DeliverForm = {
+  providerAccount: string;
+  panelUrl: string;
+  loginInfo: string;
+  remark: string;
+};
+
 function statusTone(status: string) {
   if (status === 'COMPLETED') return 'success' as const;
   if (status === 'REFUNDING' || status === 'DISPUTING' || status === 'CANCELED') return 'danger' as const;
@@ -82,13 +95,19 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [status, setStatus] = useState('VERIFYING');
+  const [status, setStatus] = useState('');
+  const [riskPendingOnly, setRiskPendingOnly] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [forms, setForms] = useState<Record<string, VerifyForm>>({});
+  const [deliverForms, setDeliverForms] = useState<Record<string, DeliverForm>>({});
   const [selectedId, setSelectedId] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
+  const riskPendingCount = useMemo(
+    () => orders.filter((item) => item.riskReviewRequired && item.riskReviewPassed !== true).length,
+    [orders]
+  );
 
   const load = useCallback(async () => {
     if (!token) {
@@ -121,8 +140,11 @@ export default function AdminOrdersPage() {
 
   const filteredOrders = useMemo(() => {
     const key = keyword.trim().toLowerCase();
-    if (!key) return orders;
-    return orders.filter((item) => {
+    const source = riskPendingOnly
+      ? orders.filter((item) => item.riskReviewRequired && item.riskReviewPassed !== true)
+      : orders;
+    if (!key) return source;
+    return source.filter((item) => {
       return (
         item.id.toLowerCase().includes(key) ||
         (item.product?.title || '').toLowerCase().includes(key) ||
@@ -131,7 +153,7 @@ export default function AdminOrdersPage() {
         (item.seller?.email || '').toLowerCase().includes(key)
       );
     });
-  }, [orders, keyword]);
+  }, [orders, keyword, riskPendingOnly]);
 
   useEffect(() => {
     if (!filteredOrders.length) {
@@ -159,11 +181,32 @@ export default function AdminOrdersPage() {
     );
   };
 
+  const getDeliverForm = (orderId: string): DeliverForm => {
+    return (
+      deliverForms[orderId] || {
+        providerAccount: '',
+        panelUrl: '',
+        loginInfo: '',
+        remark: ''
+      }
+    );
+  };
+
   const updateForm = (orderId: string, patch: Partial<VerifyForm>) => {
     setForms((prev) => ({
       ...prev,
       [orderId]: {
         ...getForm(orderId),
+        ...patch
+      }
+    }));
+  };
+
+  const updateDeliverForm = (orderId: string, patch: Partial<DeliverForm>) => {
+    setDeliverForms((prev) => ({
+      ...prev,
+      [orderId]: {
+        ...getDeliverForm(orderId),
         ...patch
       }
     }));
@@ -205,6 +248,75 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const reviewRisk = async (orderId: string, approved: boolean) => {
+    if (!token) return;
+    const form = getForm(orderId);
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/admin/orders/${orderId}/risk-review`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          approved,
+          remark: form.risk || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '风控审核失败');
+      setMessage(data.message || '风控审核已完成');
+      await load();
+    } catch (e: any) {
+      setError(e.message || '风控审核失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deliverByAdmin = async (orderId: string) => {
+    if (!token) return;
+    const form = getDeliverForm(orderId);
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/admin/orders/${orderId}/deliver`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          providerAccount: form.providerAccount.trim() || undefined,
+          panelUrl: form.panelUrl.trim() || undefined,
+          loginInfo: form.loginInfo.trim() || undefined,
+          remark: form.remark.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '平台代交付失败');
+      setMessage(data.message || '寄售订单已完成平台代交付');
+      setDeliverForms((prev) => ({
+        ...prev,
+        [orderId]: {
+          providerAccount: '',
+          panelUrl: '',
+          loginInfo: '',
+          remark: ''
+        }
+      }));
+      await load();
+    } catch (e: any) {
+      setError(e.message || '平台代交付失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="page page-shell admin-console-page">
       <ConsolePageHeader
@@ -214,7 +326,8 @@ export default function AdminOrdersPage() {
         tags={[
           { label: '担保交易流程', tone: 'info' },
           { label: '平台核验', tone: 'warning' },
-          { label: `订单 ${orders.length} 条`, tone: 'default' }
+          { label: `订单 ${orders.length} 条`, tone: 'default' },
+          { label: `风控待审 ${riskPendingCount} 条`, tone: riskPendingCount > 0 ? 'danger' : 'success' }
         ]}
         actions={
           <button onClick={load} className="btn secondary" disabled={loading}>
@@ -228,6 +341,7 @@ export default function AdminOrdersPage() {
           <div className="field">
             <label>订单状态</label>
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="PENDING_PAYMENT">待支付</option>
               <option value="VERIFYING">平台核验中</option>
               <option value="PAID_WAITING_DELIVERY">待交付</option>
               <option value="BUYER_CHECKING">买家验机中</option>
@@ -253,6 +367,15 @@ export default function AdminOrdersPage() {
             <input value="担保托管" disabled />
           </div>
         </div>
+        <div className="actions">
+          <button
+            className={`btn ${riskPendingOnly ? 'primary' : 'secondary'}`}
+            onClick={() => setRiskPendingOnly((v) => !v)}
+            type="button"
+          >
+            {riskPendingOnly ? '仅看风控待审' : '显示全部风控状态'}
+          </button>
+        </div>
       </ConsolePanel>
 
       {message ? <p className="success">{message}</p> : null}
@@ -273,6 +396,7 @@ export default function AdminOrdersPage() {
                   <th>订单 / 商品</th>
                   <th>买家 / 卖家</th>
                   <th>流程状态</th>
+                  <th>风控状态</th>
                   <th>金额</th>
                   <th>最近核验</th>
                   <th>担保提示</th>
@@ -300,6 +424,22 @@ export default function AdminOrdersPage() {
                           </StatusBadge>
                         </div>
                       </td>
+                      <td data-label="风控状态">
+                        <div className="console-inline-tags">
+                          <StatusBadge tone={order.riskReviewRequired && order.riskReviewPassed !== true ? 'danger' : 'success'}>
+                            {order.riskReviewRequired
+                              ? order.riskReviewPassed === true
+                                ? '风控已通过'
+                                : order.riskReviewPassed === false
+                                  ? '风控已拒绝'
+                                  : '待风控审核'
+                              : '无需风控复核'}
+                          </StatusBadge>
+                          {order.riskAction && order.riskAction !== 'ALLOW' ? (
+                            <StatusBadge tone="warning">动作 {order.riskAction}</StatusBadge>
+                          ) : null}
+                        </div>
+                      </td>
                       <td data-label="金额">
                         <div className="console-row-primary">{formatMoney(order.price)}</div>
                         <p className="console-row-sub">托管资金</p>
@@ -317,6 +457,9 @@ export default function AdminOrdersPage() {
                       <td data-label="担保提示">
                         <div className="console-inline-tags">
                           <StatusBadge tone="info">平台担保</StatusBadge>
+                          {order.product?.consignment ? (
+                            <StatusBadge tone="warning">寄售订单</StatusBadge>
+                          ) : null}
                           {(order.status === 'DISPUTING' || order.status === 'REFUNDING') && (
                             <StatusBadge tone="danger">风险阶段</StatusBadge>
                           )}
@@ -363,14 +506,130 @@ export default function AdminOrdersPage() {
                 <p className="value">{statusLabel[selectedOrder.status] || selectedOrder.status}</p>
               </div>
               <div className="spec-item">
+                <p className="label">交付执行方</p>
+                <p className="value">{selectedOrder.product?.consignment ? '平台代交付（寄售）' : '卖家自主交付'}</p>
+              </div>
+              <div className="spec-item">
                 <p className="label">创建时间</p>
                 <p className="value">{formatDateTime(selectedOrder.createdAt)}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">风控状态</p>
+                <p className="value">
+                  {selectedOrder.riskReviewRequired
+                    ? selectedOrder.riskReviewPassed === true
+                      ? '已通过'
+                      : selectedOrder.riskReviewPassed === false
+                        ? '已拒绝'
+                        : '待人工审核'
+                    : '无需复核'}
+                </p>
+              </div>
+              <div className="spec-item">
+                <p className="label">风控动作</p>
+                <p className="value">{selectedOrder.riskAction || 'ALLOW'}</p>
               </div>
             </div>
 
             <div className="console-alert">
               核验重点：CPU / 内存 / 磁盘 / 带宽 / 到期时间与商品描述一致性，异常需标注风险说明，供纠纷与风控追溯。
             </div>
+
+            {selectedOrder.riskReviewRequired && selectedOrder.riskReviewPassed !== true ? (
+              <section className="card nested stack-12">
+                <h3 style={{ fontSize: 16 }}>风控复核</h3>
+                <p className="muted">
+                  该订单命中风控规则，买家支付前需先通过人工复核。请填写复核意见后执行通过或拒绝。
+                </p>
+                <div className="form">
+                  <label>风控审核备注</label>
+                  <textarea
+                    rows={3}
+                    value={getForm(selectedOrder.id).risk}
+                    onChange={(e) => updateForm(selectedOrder.id, { risk: e.target.value })}
+                    placeholder="例如：核验订单来源与历史行为后，允许继续交易"
+                  />
+                </div>
+                <div className="actions">
+                  <button
+                    className="btn primary"
+                    onClick={() => reviewRisk(selectedOrder.id, true)}
+                    disabled={loading}
+                  >
+                    通过风控审核
+                  </button>
+                  <button
+                    className="btn secondary"
+                    onClick={() => reviewRisk(selectedOrder.id, false)}
+                    disabled={loading}
+                  >
+                    拒绝并关闭订单
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
+            {selectedOrder.status === 'PAID_WAITING_DELIVERY' && selectedOrder.product?.consignment ? (
+              <section className="card nested stack-12">
+                <h3 style={{ fontSize: 16 }}>寄售平台代交付</h3>
+                <p className="muted">
+                  当前订单为寄售模式，平台可代替卖家提交交付信息，提交后将自动进入下一履约阶段。
+                </p>
+                <div className="console-filter-grid">
+                  <div className="field">
+                    <label>服务商账号</label>
+                    <input
+                      value={getDeliverForm(selectedOrder.id).providerAccount}
+                      onChange={(e) =>
+                        updateDeliverForm(selectedOrder.id, { providerAccount: e.target.value })
+                      }
+                      placeholder="例如：provider_user_001"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>面板地址</label>
+                    <input
+                      value={getDeliverForm(selectedOrder.id).panelUrl}
+                      onChange={(e) =>
+                        updateDeliverForm(selectedOrder.id, { panelUrl: e.target.value })
+                      }
+                      placeholder="例如：https://panel.example.com"
+                    />
+                  </div>
+                </div>
+                <div className="form">
+                  <label>登录信息</label>
+                  <textarea
+                    rows={3}
+                    value={getDeliverForm(selectedOrder.id).loginInfo}
+                    onChange={(e) =>
+                      updateDeliverForm(selectedOrder.id, { loginInfo: e.target.value })
+                    }
+                    placeholder="可填写临时账号、密码策略、二次验证说明"
+                  />
+                </div>
+                <div className="form">
+                  <label>交付备注</label>
+                  <textarea
+                    rows={2}
+                    value={getDeliverForm(selectedOrder.id).remark}
+                    onChange={(e) =>
+                      updateDeliverForm(selectedOrder.id, { remark: e.target.value })
+                    }
+                    placeholder="例如：已由平台客服代交付，买家可直接验机"
+                  />
+                </div>
+                <div className="actions">
+                  <button
+                    className="btn primary"
+                    onClick={() => deliverByAdmin(selectedOrder.id)}
+                    disabled={loading}
+                  >
+                    提交平台代交付
+                  </button>
+                </div>
+              </section>
+            ) : null}
 
             {selectedOrder.status === 'VERIFYING' || selectedOrder.status === 'BUYER_CHECKING' ? (
               <div className="form stack-12">
@@ -385,9 +644,9 @@ export default function AdminOrdersPage() {
                         })
                       }
                     >
-                      <option value="PASS">PASS（通过）</option>
-                      <option value="FAIL">FAIL（驳回重交付）</option>
-                      <option value="NEED_MORE">NEED_MORE（需补充）</option>
+                      <option value="PASS">通过</option>
+                      <option value="FAIL">驳回重交付</option>
+                      <option value="NEED_MORE">需补充</option>
                     </select>
                   </div>
                   <div className="field">
@@ -449,7 +708,13 @@ export default function AdminOrdersPage() {
                 </div>
               </div>
             ) : (
-              <p className="muted">当前订单状态无需平台核验，可在上方列表继续处理其他订单。</p>
+              <p className="muted">
+                {selectedOrder.status === 'PAID_WAITING_DELIVERY'
+                  ? selectedOrder.product?.consignment
+                    ? '该订单可使用上方“平台代交付”操作推进流程。'
+                    : '该订单等待卖家交付，交付后将进入平台核验。'
+                  : '当前订单状态无需平台核验，可在上方列表继续处理其他订单。'}
+              </p>
             )}
           </>
         )}

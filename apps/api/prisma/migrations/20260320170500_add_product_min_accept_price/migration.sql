@@ -1,0 +1,2 @@
+ALTER TABLE `Product`
+ADD COLUMN `minAcceptPrice` DECIMAL(16, 2) NULL;

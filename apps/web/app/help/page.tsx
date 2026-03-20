@@ -1,30 +1,8 @@
 import Link from 'next/link';
 import { api } from '../../lib/api';
+import { EscrowFlowCards } from '../../components/escrow-flow';
 
 export const dynamic = 'force-dynamic';
-
-const FLOW = [
-  {
-    title: '1. 卖家上架并提交审核',
-    desc: '卖家填写配置、价格、交付方式与凭证信息，平台进行基础校验与风控标注。'
-  },
-  {
-    title: '2. 买家下单并支付托管',
-    desc: '买家确认商品后发起支付，资金先进入平台托管，不直接打给卖家。'
-  },
-  {
-    title: '3. 卖家交付账号/面板信息',
-    desc: '卖家按订单要求交付，并提交交付记录，平台与买家可查看全过程。'
-  },
-  {
-    title: '4. 平台核验 + 买家验机',
-    desc: '核验配置、到期、线路、权限一致性，买家在验机窗口内确认或反馈问题。'
-  },
-  {
-    title: '5. 自动结算或进入售后',
-    desc: '确认无误后系统结算放款；若异常可发起退款/纠纷并进入仲裁流程。'
-  }
-];
 
 export default async function HelpPage() {
   let helps: Awaited<ReturnType<typeof api.helpArticles>> = [];
@@ -50,24 +28,16 @@ export default async function HelpPage() {
           <Link href="/seller/products" className="btn secondary">
             去发布商品
           </Link>
+          <Link href="/rules" className="btn ghost">
+            查看交易规则
+          </Link>
+          <Link href="/agreement" className="btn ghost">
+            查看服务协议
+          </Link>
         </div>
       </section>
 
-      <section className="stack-16">
-        <div>
-          <p className="eyebrow">担保流程</p>
-          <h2>平台标准交易流程</h2>
-        </div>
-        <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-          {FLOW.map((item, idx) => (
-            <article className="card stack-8" key={item.title}>
-              <span className="status-chip info">阶段 {idx + 1}</span>
-              <h3 style={{ fontSize: 16 }}>{item.title}</h3>
-              <p className="muted">{item.desc}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <EscrowFlowCards eyebrow="担保流程" title="平台标准交易流程" />
 
       <section className="stack-16">
         <div>

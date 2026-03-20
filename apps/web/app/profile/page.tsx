@@ -104,6 +104,7 @@ export default function ProfilePage() {
         <Link href="/profile/favorites" className="btn">我的收藏</Link>
         <Link href="/profile/history" className="btn">浏览历史</Link>
         <Link href="/profile/alerts" className="btn">价格提醒</Link>
+        <Link href="/profile/support" className="btn">售后工单</Link>
       </div>
     </main>
   );

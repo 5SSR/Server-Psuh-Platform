@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toLocaleHref, toLocaleRoute } from '../../../lib/locale';
+import { useLocale } from '../../../lib/use-locale';
 
 const API = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -10,6 +12,7 @@ const CATEGORIES = ['VPS', 'DEDICATED', 'CLOUD', 'NAT', 'LINE'];
 
 export default function WantedCreatePage() {
   const router = useRouter();
+  const { locale, t } = useLocale();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -31,12 +34,12 @@ export default function WantedCreatePage() {
     e.preventDefault();
     const token = localStorage.getItem('idc_token');
     if (!token) {
-      setError('请先登录后发布求购');
+      setError(t('请先登录后发布求购', 'Please sign in before posting wanted requests'));
       return;
     }
 
     if (!title.trim() || !region.trim()) {
-      setError('请填写求购标题和目标地区');
+      setError(t('请填写求购标题和目标地区', 'Please fill in title and target region'));
       return;
     }
 
@@ -68,14 +71,14 @@ export default function WantedCreatePage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || '发布求购失败');
+      if (!res.ok) throw new Error(data.message || t('发布求购失败', 'Failed to create wanted request'));
 
-      setMessage('求购需求已发布，卖家可开始匹配报价');
+      setMessage(t('求购需求已发布，卖家可开始匹配报价', 'Wanted request published. Sellers can now submit offers.'));
       setTimeout(() => {
-        router.replace('/wanted/mine');
+        router.replace(toLocaleRoute('/wanted/mine', locale));
       }, 600);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发布求购失败');
+      setError(err instanceof Error ? err.message : t('发布求购失败', 'Failed to create wanted request'));
     } finally {
       setLoading(false);
     }
@@ -90,8 +93,8 @@ export default function WantedCreatePage() {
           <p className="sub">描述你希望采购的配置、预算和线路偏好，平台将保留担保交易闭环。</p>
         </div>
         <div className="toolbar" style={{ alignItems: 'flex-start' }}>
-          <Link href="/wanted" className="btn secondary">返回求购市场</Link>
-          <Link href="/wanted/mine" className="btn secondary">我的求购</Link>
+          <Link href={toLocaleHref('/wanted', locale)} className="btn secondary">返回求购市场</Link>
+          <Link href={toLocaleHref('/wanted/mine', locale)} className="btn secondary">我的求购</Link>
         </div>
       </header>
 

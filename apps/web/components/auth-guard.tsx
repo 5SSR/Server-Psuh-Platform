@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { toLocalePath, toLocaleRoute } from '../lib/locale';
+import { useLocale } from '../lib/use-locale';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -16,13 +18,15 @@ export default function AuthGuard({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { locale, t } = useLocale();
   const [loading, setLoading] = useState(true);
   const [allow, setAllow] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('idc_token');
     if (!token) {
-      window.location.replace(`/auth/login?redirect=${encodeURIComponent(pathname || '/')}`);
+      const loginPath = toLocalePath('/auth/login', locale);
+      window.location.replace(`${loginPath}?redirect=${encodeURIComponent(pathname || '/')}`);
       return;
     }
 
@@ -33,29 +37,30 @@ export default function AuthGuard({
         });
         if (!res.ok) {
           localStorage.removeItem('idc_token');
-          window.location.replace(`/auth/login?redirect=${encodeURIComponent(pathname || '/')}`);
+          const loginPath = toLocalePath('/auth/login', locale);
+          window.location.replace(`${loginPath}?redirect=${encodeURIComponent(pathname || '/')}`);
           return;
         }
         const data = await res.json();
         if (requireRole === 'ADMIN' && data?.role !== 'ADMIN') {
-          router.replace('/products');
+          router.replace(toLocaleRoute('/products', locale));
           return;
         }
         setAllow(true);
       } catch {
-        window.location.replace('/auth/login');
+        window.location.replace(toLocalePath('/auth/login', locale));
       } finally {
         setLoading(false);
       }
     };
 
     check();
-  }, [pathname, requireRole, router]);
+  }, [locale, pathname, requireRole, router]);
 
   if (loading) {
     return (
       <main className="page">
-        <p className="muted">正在校验登录状态...</p>
+        <p className="muted">{t('正在校验登录状态...', 'Checking authentication...')}</p>
       </main>
     );
   }

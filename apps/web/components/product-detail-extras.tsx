@@ -2,10 +2,13 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { toLocalePath } from '../lib/locale';
+import { useLocale } from '../lib/use-locale';
 
 const API = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
 export function FavoriteButton({ productId }: { productId: string }) {
+  const { locale } = useLocale();
   const [faved, setFaved] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +29,9 @@ export function FavoriteButton({ productId }: { productId: string }) {
   const toggle = async () => {
     const token = localStorage.getItem('idc_token');
     if (!token) {
-      window.location.href = `/auth/login?redirect=${encodeURIComponent(`/products/${productId}`)}`;
+      const loginPath = toLocalePath('/auth/login', locale);
+      const redirect = toLocalePath(`/products/${productId}`, locale);
+      window.location.href = `${loginPath}?redirect=${encodeURIComponent(redirect)}`;
       return;
     }
     setLoading(true);
