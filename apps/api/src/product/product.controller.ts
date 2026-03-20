@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -8,17 +9,20 @@ import {
   Query,
   UseGuards
 } from '@nestjs/common';
-import { ProductService } from './product.service';
-import { QueryProductDto } from './dto/query-product.dto';
+
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+
+import { ProductService } from './product.service';
+import { QueryProductDto } from './dto/query-product.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SubmitProductDto } from './dto/submit-product.dto';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
 import { ProductImageDto } from './dto/image.dto';
 import { QueryMyProductsDto } from './dto/query-my-products.dto';
+import { SyncProviderConfigDto } from './dto/sync-provider-config.dto';
 
 @Controller('products')
 export class ProductController {
@@ -37,6 +41,16 @@ export class ProductController {
     @Query() query: QueryMyProductsDto
   ) {
     return this.productService.findMine(user.userId, query);
+  }
+
+  @Post('provider/sync')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('USER')
+  syncProviderConfig(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: SyncProviderConfigDto
+  ) {
+    return this.productService.syncProviderConfig(user.userId, dto);
   }
 
   @Get(':id')
@@ -87,6 +101,22 @@ export class ProductController {
     return this.productService.toggleOnline(id, user.userId, false);
   }
 
+  @Patch(':id/urgent')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('USER')
+  urgent(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string,
+    @Body('urgent') urgent: boolean | string | number
+  ) {
+    const urgentValue =
+      urgent === true ||
+      urgent === 'true' ||
+      urgent === 1 ||
+      urgent === '1';
+    return this.productService.setUrgent(id, user.userId, urgentValue);
+  }
+
   @Post(':id/images')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('USER')
@@ -107,5 +137,12 @@ export class ProductController {
     @Param('imageId') imageId: string
   ) {
     return this.productService.deleteImage(user.userId, id, imageId);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('USER')
+  deleteProduct(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
+    return this.productService.deleteProduct(user.userId, id);
   }
 }

@@ -199,7 +199,7 @@ export default function AdminSettlementsPage() {
           <ConsoleEmpty text={loading ? '加载中...' : '暂无结算记录'} />
         ) : (
           <div className="console-table-wrap">
-            <table className="console-table">
+            <table className="console-table console-table-mobile">
               <thead>
                 <tr>
                   <th>结算单 / 订单</th>
@@ -214,30 +214,30 @@ export default function AdminSettlementsPage() {
               <tbody>
                 {filteredList.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="结算单 / 订单">
                       <div className="console-row-primary">{item.id}</div>
                       <p className="console-row-sub">订单：{item.orderId}</p>
                       <p className="console-row-sub">{item.order?.product?.title || '未知商品'}</p>
                     </td>
-                    <td>
+                    <td data-label="买家 / 卖家">
                       <div className="console-row-primary">买家：{item.order?.buyer?.email || '-'}</div>
                       <p className="console-row-sub">卖家：{item.order?.seller?.email || item.sellerId}</p>
                     </td>
-                    <td>
+                    <td data-label="金额 / 手续费">
                       <div className="console-row-primary">{formatMoney(item.amount)}</div>
                       <p className="console-row-sub">手续费：{formatMoney(item.fee)}</p>
                     </td>
-                    <td>
+                    <td data-label="净放款">
                       <div className="console-row-primary">{formatMoney(Number(item.amount) - Number(item.fee))}</div>
                     </td>
-                    <td>
+                    <td data-label="状态">
                       <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
                     </td>
-                    <td>
+                    <td data-label="时间">
                       <div className="console-row-primary">创建：{formatDateTime(item.createdAt)}</div>
                       <p className="console-row-sub">放款：{item.releasedAt ? formatDateTime(item.releasedAt) : '未放款'}</p>
                     </td>
-                    <td>
+                    <td data-label="操作">
                       <button
                         type="button"
                         onClick={() => setSelectedId(item.id)}

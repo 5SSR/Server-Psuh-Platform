@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -15,6 +16,12 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @Roles('ADMIN')
 export class AdminRiskController {
   constructor(private readonly riskService: RiskService) {}
+
+  @Get('overview')
+  getOverview(@Query('days') days?: string) {
+    const parsed = Number(days);
+    return this.riskService.getOverview(Number.isFinite(parsed) ? parsed : 7);
+  }
 
   @Get('rules')
   listRules(@Query() query: RiskRuleQueryDto) {
@@ -53,11 +60,45 @@ export class AdminRiskController {
     return this.riskService.upsertEntity(dto);
   }
 
+  @Post('entities/batch-upsert')
+  batchUpsertEntities(
+    @Body() dto: {
+      listType: string;
+      entityType: string;
+      entityValues: string[];
+      reason?: string;
+      enabled?: boolean;
+      expiresAt?: string;
+    }
+  ) {
+    return this.riskService.batchUpsertEntities(dto);
+  }
+
+  @Get('entities/export')
+  exportEntities(
+    @Query('listType') listType = 'BLACKLIST',
+    @Query('entityType') entityType?: string,
+    @Query('enabledOnly') enabledOnly?: string
+  ) {
+    return this.riskService.exportEntities({
+      listType,
+      entityType,
+      enabledOnly: enabledOnly === '1' || enabledOnly === 'true'
+    });
+  }
+
   @Patch('entities/:id')
   updateEntity(
     @Param('id') id: string,
     @Body() dto: { enabled?: boolean; reason?: string; expiresAt?: string }
   ) {
     return this.riskService.updateEntity(id, dto);
+  }
+
+  @Post('watchlist/sync')
+  syncWatchlist(
+    @Body() dto: { windowHours?: number; thresholdScore?: number }
+  ) {
+    return this.riskService.syncAutoWatchlist(dto);
   }
 }

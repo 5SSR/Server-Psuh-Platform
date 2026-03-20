@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, RiskAction, RiskScene } from '@prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
 
 interface RiskInput {
   userId?: string;
@@ -13,6 +14,14 @@ interface RiskInput {
 @Injectable()
 export class RiskService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly actionScoreMap: Record<RiskAction, number> = {
+    ALLOW: 0,
+    ALERT: 2,
+    LIMIT: 3,
+    REVIEW: 4,
+    BLOCK: 6
+  };
 
   async listRules(query: { page?: number; pageSize?: number; scene?: RiskScene; enabled?: boolean }) {
     const { page = 1, pageSize = 20, scene, enabled } = query;
@@ -122,6 +131,96 @@ export class RiskService {
     return { total, list, page, pageSize };
   }
 
+  async getOverview(days = 7) {
+    const windowDays = Number.isFinite(days) ? Math.min(Math.max(days, 1), 90) : 7;
+    const startAt = new Date(Date.now() - windowDays * 24 * 3600 * 1000);
+
+    const [totalHits, actionGroups, sceneGroups, userActionGroups, blacklistCount, watchlistCount] =
+      await Promise.all([
+        this.prisma.riskHit.count({
+          where: { createdAt: { gte: startAt } }
+        }),
+        this.prisma.riskHit.groupBy({
+          by: ['action'],
+          where: { createdAt: { gte: startAt } },
+          _count: { _all: true }
+        }),
+        this.prisma.riskHit.groupBy({
+          by: ['scene'],
+          where: { createdAt: { gte: startAt } },
+          _count: { _all: true }
+        }),
+        this.prisma.riskHit.groupBy({
+          by: ['userId', 'action'],
+          where: {
+            createdAt: { gte: startAt },
+            userId: { not: null }
+          },
+          _count: { _all: true }
+        }),
+        this.prisma.riskEntityList.count({
+          where: {
+            listType: 'BLACKLIST',
+            enabled: true,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }]
+          }
+        }),
+        this.prisma.riskEntityList.count({
+          where: {
+            listType: 'WATCHLIST',
+            enabled: true,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }]
+          }
+        })
+      ]);
+
+    const userScoreMap = new Map<
+      string,
+      { score: number; hitCount: number; blockCount: number; reviewCount: number }
+    >();
+
+    for (const item of userActionGroups) {
+      const userId = item.userId;
+      if (!userId) continue;
+      const count = item._count._all;
+      const current = userScoreMap.get(userId) || {
+        score: 0,
+        hitCount: 0,
+        blockCount: 0,
+        reviewCount: 0
+      };
+      current.hitCount += count;
+      current.score += this.actionScoreMap[item.action] * count;
+      if (item.action === 'BLOCK') current.blockCount += count;
+      if (item.action === 'REVIEW') current.reviewCount += count;
+      userScoreMap.set(userId, current);
+    }
+
+    const topRiskUsers = Array.from(userScoreMap.entries())
+      .map(([userId, value]) => ({
+        userId,
+        ...value
+      }))
+      .sort((a, b) => b.score - a.score || b.hitCount - a.hitCount)
+      .slice(0, 10);
+
+    return {
+      windowDays,
+      totalHits,
+      actionDistribution: actionGroups.map((item) => ({
+        action: item.action,
+        count: item._count._all
+      })),
+      sceneDistribution: sceneGroups.map((item) => ({
+        scene: item.scene,
+        count: item._count._all
+      })),
+      blacklistCount,
+      watchlistCount,
+      topRiskUsers
+    };
+  }
+
   async upsertEntity(input: {
     listType: string;
     entityType: string;
@@ -167,6 +266,195 @@ export class RiskService {
           : {})
       }
     });
+  }
+
+  async batchUpsertEntities(input: {
+    listType: string;
+    entityType: string;
+    entityValues: string[];
+    reason?: string;
+    enabled?: boolean;
+    expiresAt?: string;
+  }) {
+    const values = Array.from(
+      new Set(
+        (input.entityValues || [])
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0)
+      )
+    );
+
+    if (values.length === 0) {
+      return { count: 0, listType: input.listType, entityType: input.entityType };
+    }
+
+    await this.prisma.$transaction(
+      values.map((value) =>
+        this.prisma.riskEntityList.upsert({
+          where: {
+            listType_entityType_entityValue: {
+              listType: input.listType,
+              entityType: input.entityType,
+              entityValue: value
+            }
+          },
+          create: {
+            listType: input.listType,
+            entityType: input.entityType,
+            entityValue: value,
+            enabled: input.enabled ?? true,
+            reason: input.reason,
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : null
+          },
+          update: {
+            enabled: input.enabled ?? true,
+            reason: input.reason,
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : null
+          }
+        })
+      )
+    );
+
+    return {
+      count: values.length,
+      listType: input.listType,
+      entityType: input.entityType
+    };
+  }
+
+  async exportEntities(query: {
+    listType: string;
+    entityType?: string;
+    enabledOnly?: boolean;
+  }) {
+    const list = await this.prisma.riskEntityList.findMany({
+      where: {
+        listType: query.listType,
+        ...(query.entityType ? { entityType: query.entityType } : {}),
+        ...(query.enabledOnly ? { enabled: true } : {})
+      },
+      select: {
+        entityType: true,
+        entityValue: true,
+        enabled: true,
+        reason: true,
+        expiresAt: true,
+        createdAt: true
+      },
+      orderBy: [{ entityType: 'asc' }, { createdAt: 'asc' }]
+    });
+
+    return {
+      listType: query.listType,
+      entityType: query.entityType || null,
+      enabledOnly: Boolean(query.enabledOnly),
+      count: list.length,
+      generatedAt: new Date().toISOString(),
+      list
+    };
+  }
+
+  async syncAutoWatchlist(input?: { windowHours?: number; thresholdScore?: number }) {
+    const windowHours = Number.isFinite(input?.windowHours)
+      ? Math.min(Math.max(Number(input?.windowHours), 1), 24 * 14)
+      : 24;
+    const thresholdScore = Number.isFinite(input?.thresholdScore)
+      ? Math.min(Math.max(Number(input?.thresholdScore), 4), 200)
+      : 12;
+    const startAt = new Date(Date.now() - windowHours * 3600 * 1000);
+
+    const groups = await this.prisma.riskHit.groupBy({
+      by: ['userId', 'action'],
+      where: {
+        createdAt: { gte: startAt },
+        userId: { not: null }
+      },
+      _count: { _all: true }
+    });
+
+    const scoreMap = new Map<
+      string,
+      { score: number; hitCount: number; blockCount: number; reviewCount: number }
+    >();
+    for (const item of groups) {
+      const userId = item.userId;
+      if (!userId) continue;
+      const count = item._count._all;
+      const current = scoreMap.get(userId) || {
+        score: 0,
+        hitCount: 0,
+        blockCount: 0,
+        reviewCount: 0
+      };
+      current.hitCount += count;
+      current.score += this.actionScoreMap[item.action] * count;
+      if (item.action === 'BLOCK') current.blockCount += count;
+      if (item.action === 'REVIEW') current.reviewCount += count;
+      scoreMap.set(userId, current);
+    }
+
+    const candidates = Array.from(scoreMap.entries())
+      .filter(([, value]) => value.score >= thresholdScore)
+      .map(([userId, value]) => ({ userId, ...value }));
+    const candidateIds = candidates.map((item) => item.userId);
+
+    let activated = 0;
+    const disabledResult = await this.prisma.$transaction(async (tx) => {
+      for (const item of candidates) {
+        await tx.riskEntityList.upsert({
+          where: {
+            listType_entityType_entityValue: {
+              listType: 'WATCHLIST',
+              entityType: 'USER_ID',
+              entityValue: item.userId
+            }
+          },
+          create: {
+            listType: 'WATCHLIST',
+            entityType: 'USER_ID',
+            entityValue: item.userId,
+            enabled: true,
+            reason: `[AUTO] 风险评分=${item.score} 命中=${item.hitCount}（窗口${windowHours}h）`
+          },
+          update: {
+            enabled: true,
+            reason: `[AUTO] 风险评分=${item.score} 命中=${item.hitCount}（窗口${windowHours}h）`
+          }
+        });
+      }
+      activated = candidates.length;
+
+      const disableWhere: Prisma.RiskEntityListWhereInput = {
+        listType: 'WATCHLIST',
+        entityType: 'USER_ID',
+        enabled: true,
+        reason: { startsWith: '[AUTO]' }
+      };
+
+      return tx.riskEntityList.updateMany({
+        where:
+          candidateIds.length > 0
+            ? {
+                ...disableWhere,
+                NOT: { entityValue: { in: candidateIds } }
+              }
+            : disableWhere,
+        data: {
+          enabled: false,
+          reason: `[AUTO] 风险评分回落自动停用（窗口${windowHours}h）`
+        }
+      });
+    });
+
+    return {
+      windowHours,
+      thresholdScore,
+      evaluatedUsers: scoreMap.size,
+      candidates: candidates.length,
+      activated,
+      disabled: disabledResult.count,
+      topCandidates: candidates.sort((a, b) => b.score - a.score).slice(0, 10)
+    };
   }
 
   async evaluate(scene: RiskScene, input: RiskInput) {

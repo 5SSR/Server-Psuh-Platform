@@ -102,6 +102,8 @@ export default function ProfilePage() {
         <Link href="/profile/security" className="btn">安全设置</Link>
         <Link href="/profile/verify" className="btn">实名认证</Link>
         <Link href="/profile/favorites" className="btn">我的收藏</Link>
+        <Link href="/profile/history" className="btn">浏览历史</Link>
+        <Link href="/profile/alerts" className="btn">价格提醒</Link>
       </div>
     </main>
   );

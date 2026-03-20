@@ -184,7 +184,7 @@ export default function AdminRefundsPage() {
           <ConsoleEmpty text={loading ? '加载中...' : '暂无退款记录'} />
         ) : (
           <div className="console-table-wrap">
-            <table className="console-table">
+            <table className="console-table console-table-mobile">
               <thead>
                 <tr>
                   <th>工单 / 订单</th>
@@ -199,25 +199,25 @@ export default function AdminRefundsPage() {
               <tbody>
                 {filteredItems.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="工单 / 订单">
                       <div className="console-row-primary">{item.id}</div>
                       <p className="console-row-sub">订单：{item.orderId}</p>
                     </td>
-                    <td>
+                    <td data-label="申请人">
                       <div className="console-row-primary">{item.applicantId}</div>
                       <p className="console-row-sub">退款发起方</p>
                     </td>
-                    <td>
+                    <td data-label="退款原因">
                       <div className="console-row-primary">{item.reason}</div>
                     </td>
-                    <td>
+                    <td data-label="金额">
                       <div className="console-row-primary">{formatMoney(item.amount)}</div>
                     </td>
-                    <td>
+                    <td data-label="状态">
                       <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
                     </td>
-                    <td>{formatDateTime(item.createdAt)}</td>
-                    <td>
+                    <td data-label="申请时间">{formatDateTime(item.createdAt)}</td>
+                    <td data-label="操作">
                       <button
                         type="button"
                         onClick={() => setSelectedId(item.id)}

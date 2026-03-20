@@ -8,8 +8,10 @@ import {
   Body,
   UseGuards
 } from '@nestjs/common';
+
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+
 import { UserInteractionService } from './user-interaction.service';
 
 @Controller('user')
@@ -62,6 +64,14 @@ export class UserInteractionController {
   @Delete('history')
   clearHistory(@CurrentUser() user: { userId: string }) {
     return this.interactionService.clearHistory(user.userId);
+  }
+
+  @Post('history/:productId')
+  recordHistory(
+    @CurrentUser() user: { userId: string },
+    @Param('productId') productId: string
+  ) {
+    return this.interactionService.recordView(user.userId, productId);
   }
 
   // ---- Price Alerts ----

@@ -85,6 +85,7 @@ enum PayChannel {
   BALANCE
   ALIPAY
   WECHAT
+  USDT
   MANUAL
 }
 
@@ -133,6 +134,8 @@ enum NoticeChannel {
   SITE
   EMAIL
   TG
+  SMS
+  WECHAT_TEMPLATE
 }
 
 enum NoticeStatus {
@@ -156,6 +159,37 @@ enum SellerApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum WantedStatus {
+  OPEN
+  CLOSED
+}
+
+enum WantedOfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum BargainStatus {
+  WAIT_SELLER
+  WAIT_BUYER
+  ACCEPTED
+  REJECTED
+  CANCELED
+}
+
+enum BargainActor {
+  BUYER
+  SELLER
+}
+
+enum ConsignmentApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
 }
 
 enum ReconcileTaskStatus {
@@ -194,6 +228,23 @@ enum RiskAction {
   BLOCK
 }
 
+enum FeePayer {
+  BUYER
+  SELLER
+  SHARED
+}
+
+enum FeeConfigScene {
+  ORDER
+  WITHDRAW
+}
+
+enum FeeConfigMode {
+  FIXED
+  RATE
+  TIER
+}
+
 // ========== 用户与认证 ==========
 
 model User {
@@ -227,6 +278,16 @@ model User {
   favorites     Favorite[]
   browsingHistory BrowsingHistory[]
   priceAlerts   PriceAlert[]
+  wantedRequests WantedRequest[] @relation("BuyerWantedRequests")
+  wantedOffers   WantedOffer[]   @relation("SellerWantedOffers")
+  buyerBargains  Bargain[]       @relation("BuyerBargains")
+  sellerBargains Bargain[]       @relation("SellerBargains")
+  consignmentApplications ConsignmentApplication[] @relation("SellerConsignments")
+  reviewedConsignments ConsignmentApplication[]    @relation("ConsignmentReviewer")
+  storeProfile StoreProfile?
+  buyerReviews OrderReview[]                       @relation("BuyerReviews")
+  sellerReviews OrderReview[]                      @relation("SellerReviews")
+  openApiKeys OpenApiKey[]
 }
 
 model AuthCode {
@@ -295,6 +356,80 @@ model SellerProfile {
   updatedAt           DateTime @updatedAt
 }
 
+model StoreProfile {
+  id              String   @id @default(uuid())
+  user            User     @relation(fields: [userId], references: [id])
+  userId          String   @unique
+  name            String
+  slug            String   @unique
+  logo            String?
+  banner          String?
+  intro           String?
+  notice          String?
+  verifiedBadge   Boolean  @default(false)
+  responseMinutes Int      @default(30)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([name])
+}
+
+model OpenApiKey {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  name      String
+  keyPrefix String
+  keyHash   String   @unique
+  scope     String?
+  status    String   @default("ACTIVE")
+  lastUsedAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  callLogs  OpenApiCallLog[]
+  nonces    OpenApiNonce[]
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+}
+
+model OpenApiCallLog {
+  id           String      @id @default(uuid())
+  openApiKey   OpenApiKey? @relation(fields: [openApiKeyId], references: [id])
+  openApiKeyId String?
+  userId       String?
+  keyPrefix    String?
+  requestPath  String
+  requestMethod String
+  nonce        String?
+  signatureMode String?
+  ip           String?
+  statusCode   Int
+  success      Boolean     @default(false)
+  errorCode    String?
+  errorMessage String?
+  durationMs   Int         @default(0)
+  createdAt    DateTime    @default(now())
+
+  @@index([openApiKeyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([keyPrefix, createdAt])
+  @@index([requestPath, createdAt])
+  @@index([success, createdAt])
+}
+
+model OpenApiNonce {
+  id           String     @id @default(uuid())
+  openApiKey   OpenApiKey @relation(fields: [openApiKeyId], references: [id])
+  openApiKeyId String
+  nonce        String
+  createdAt    DateTime   @default(now())
+
+  @@unique([openApiKeyId, nonce])
+  @@index([createdAt])
+}
+
 // ========== 钱包 ==========
 
 model Wallet {
@@ -341,6 +476,21 @@ model Withdrawal {
   @@index([walletId, status])
 }
 
+model FeeConfig {
+  id        String         @id @default(uuid())
+  scene     FeeConfigScene @unique
+  mode      FeeConfigMode  @default(RATE)
+  payer     FeePayer?
+  fixedFee  Decimal?       @db.Decimal(16, 2)
+  rate      Decimal?       @db.Decimal(8, 4)
+  minFee    Decimal?       @db.Decimal(16, 2)
+  tiers     Json?
+  remark    String?
+  updatedBy String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
 // ========== 商品 ==========
 
 model Product {
@@ -373,8 +523,11 @@ model Product {
   isPremium         Boolean         @default(false)
   premiumRate       Decimal?        @db.Decimal(6, 4)
   deliveryType      DeliveryType
+  feePayer          FeePayer        @default(SELLER)
   canChangeEmail    Boolean         @default(false)
   canChangeRealname Boolean         @default(false)
+  canTest           Boolean         @default(false)
+  canTransfer       Boolean         @default(false)
   riskLevel         RiskLevel       @default(MEDIUM)
   abuseHistory      Boolean         @default(false)
   accountRecallRisk Boolean         @default(false)
@@ -390,10 +543,33 @@ model Product {
   favorites Favorite[]
   browsingHistory BrowsingHistory[]
   priceAlerts PriceAlert[]
+  wantedOffers WantedOffer[]
+  bargains Bargain[]
+  consignmentApplications ConsignmentApplication[]
 
   @@index([sellerId, status])
   @@index([category, status])
   @@index([region, lineType])
+}
+
+model ConsignmentApplication {
+  id          String                       @id @default(uuid())
+  product     Product                      @relation(fields: [productId], references: [id])
+  productId   String
+  seller      User                         @relation("SellerConsignments", fields: [sellerId], references: [id])
+  sellerId    String
+  status      ConsignmentApplicationStatus @default(PENDING)
+  sellerNote  String?
+  adminRemark String?
+  reviewedBy  String?
+  reviewer    User?                        @relation("ConsignmentReviewer", fields: [reviewedBy], references: [id])
+  reviewedAt  DateTime?
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
+
+  @@index([sellerId, status])
+  @@index([productId, status])
+  @@index([status, createdAt])
 }
 
 model ProductImage {
@@ -418,6 +594,95 @@ model ProductAudit {
   @@index([productId, status])
 }
 
+model WantedRequest {
+  id             String          @id @default(uuid())
+  buyer          User            @relation("BuyerWantedRequests", fields: [buyerId], references: [id])
+  buyerId        String
+  title          String
+  category       ProductCategory?
+  region         String
+  lineType       String?
+  cpuCores       Int?
+  memoryGb       Int?
+  diskGb         Int?
+  bandwidthMbps  Int?
+  budgetMin      Decimal?        @db.Decimal(16, 2)
+  budgetMax      Decimal?        @db.Decimal(16, 2)
+  acceptPremium  Boolean         @default(false)
+  description    String?
+  expireAt       DateTime?
+  status         WantedStatus    @default(OPEN)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  offers WantedOffer[]
+
+  @@index([buyerId, status])
+  @@index([status, createdAt])
+  @@index([category, region])
+}
+
+model WantedOffer {
+  id          String            @id @default(uuid())
+  wanted      WantedRequest     @relation(fields: [wantedId], references: [id])
+  wantedId    String
+  seller      User              @relation("SellerWantedOffers", fields: [sellerId], references: [id])
+  sellerId    String
+  product     Product?          @relation(fields: [productId], references: [id])
+  productId   String?
+  offerPrice  Decimal           @db.Decimal(16, 2)
+  message     String?
+  status      WantedOfferStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([wantedId, sellerId])
+  @@index([sellerId, status])
+  @@index([wantedId, status])
+}
+
+model Bargain {
+  id              String        @id @default(uuid())
+  product         Product       @relation(fields: [productId], references: [id])
+  productId       String
+  buyer           User          @relation("BuyerBargains", fields: [buyerId], references: [id])
+  buyerId         String
+  seller          User          @relation("SellerBargains", fields: [sellerId], references: [id])
+  sellerId        String
+  status          BargainStatus @default(WAIT_SELLER)
+  lastActor       BargainActor
+  round           Int           @default(1)
+  currentPrice    Decimal       @db.Decimal(16, 2)
+  buyerLastPrice  Decimal?      @db.Decimal(16, 2)
+  sellerLastPrice Decimal?      @db.Decimal(16, 2)
+  remark          String?
+  expireAt        DateTime?
+  order           Order?        @relation(fields: [orderId], references: [id])
+  orderId         String?       @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  logs BargainLog[]
+
+  @@index([productId, status])
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+}
+
+model BargainLog {
+  id        String      @id @default(uuid())
+  bargain   Bargain     @relation(fields: [bargainId], references: [id])
+  bargainId String
+  action    String
+  actor     BargainActor
+  actorId   String?
+  price     Decimal?    @db.Decimal(16, 2)
+  remark    String?
+  createdAt DateTime    @default(now())
+
+  @@index([bargainId, createdAt])
+}
+
 // ========== 订单与支付 ==========
 
 model Order {
@@ -430,6 +695,7 @@ model Order {
   productId        String
   price            Decimal     @db.Decimal(16, 2)
   fee              Decimal     @default(0) @db.Decimal(16, 2)
+  feePayer         FeePayer    @default(SELLER)
   payChannel       PayChannel  @default(BALANCE)
   payStatus        PayStatus   @default(UNPAID)
   escrowAmount     Decimal     @db.Decimal(16, 2)
@@ -446,10 +712,30 @@ model Order {
   refund          Refund?
   dispute         Dispute?
   logs            OrderLog[]
+  bargain         Bargain?
+  review          OrderReview?
 
   @@index([buyerId, status])
   @@index([sellerId, status])
   @@index([productId])
+}
+
+model OrderReview {
+  id        String   @id @default(uuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String   @unique
+  buyer     User     @relation("BuyerReviews", fields: [buyerId], references: [id])
+  buyerId   String
+  seller    User     @relation("SellerReviews", fields: [sellerId], references: [id])
+  sellerId  String
+  rating    Int
+  content   String?
+  tags      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId, createdAt])
+  @@index([buyerId, createdAt])
 }
 
 model Payment {

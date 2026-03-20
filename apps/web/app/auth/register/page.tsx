@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useLocale } from '../../../lib/use-locale';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
 export default function RegisterPage() {
+  const { t } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,12 +28,18 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '注册失败');
       localStorage.setItem('idc_token', data.token);
-      setFeedback({ type: 'success', text: '注册成功，正在进入交易市场...' });
+      setFeedback({
+        type: 'success',
+        text: t('注册成功，正在进入交易市场...', 'Registration successful, redirecting to marketplace...')
+      });
       const redirect = new URLSearchParams(window.location.search).get('redirect');
       const nextPath = redirect && redirect.startsWith('/') ? redirect : '/products';
       window.location.replace(nextPath);
     } catch (e: any) {
-      setFeedback({ type: 'error', text: e.message || '注册失败，请稍后重试' });
+      setFeedback({
+        type: 'error',
+        text: e.message || t('注册失败，请稍后重试', 'Registration failed, please try again')
+      });
     } finally {
       setLoading(false);
     }
@@ -41,31 +49,34 @@ export default function RegisterPage() {
     <main className="page auth-page">
       <section className="auth-layout">
         <aside className="auth-aside">
-          <p className="eyebrow">创建账号</p>
-          <h1>注册并开始担保交易</h1>
+          <p className="eyebrow">{t('创建账号', 'Create account')}</p>
+          <h1>{t('注册并开始担保交易', 'Join and start escrow trading')}</h1>
           <p className="muted">
-            新账号可立即浏览和下单，建议完成邮箱验证、实名认证与安全设置后再进行大额交易。
+            {t(
+              '新账号可立即浏览和下单，建议完成邮箱验证、实名认证与安全设置后再进行大额交易。',
+              'New accounts can browse and place orders immediately. Complete verification and security setup before large transactions.'
+            )}
           </p>
           <div className="auth-points">
             <div className="auth-point">
-              <span className="status-chip info">发布商品</span>
-              <p>支持 VPS / 独服 / NAT / GPU 多类型交易</p>
+              <span className="status-chip info">{t('发布商品', 'List Products')}</span>
+              <p>{t('支持 VPS / 独服 / NAT / GPU 多类型交易', 'Supports VPS / dedicated / NAT / GPU transactions')}</p>
             </div>
             <div className="auth-point">
-              <span className="status-chip info">订单履约</span>
-              <p>从支付到交付、核验、确认全流程可见</p>
+              <span className="status-chip info">{t('订单履约', 'Order Fulfillment')}</span>
+              <p>{t('从支付到交付、核验、确认全流程可见', 'Full flow visibility from payment to delivery and confirmation')}</p>
             </div>
             <div className="auth-point">
-              <span className="status-chip info">资金管理</span>
-              <p>钱包、结算、提现记录清晰可查</p>
+              <span className="status-chip info">{t('资金管理', 'Fund Management')}</span>
+              <p>{t('钱包、结算、提现记录清晰可查', 'Wallet, settlements and withdrawals are traceable')}</p>
             </div>
           </div>
         </aside>
 
         <section className="auth-panel">
           <div className="auth-panel-head">
-            <h2>用户注册</h2>
-            <p className="muted">请使用常用邮箱，后续用于交易通知与安全验证。</p>
+            <h2>{t('用户注册', 'User Registration')}</h2>
+            <p className="muted">{t('请使用常用邮箱，后续用于交易通知与安全验证。', 'Use a valid email for transaction notifications and security verification.')}</p>
           </div>
 
           <form
@@ -75,29 +86,29 @@ export default function RegisterPage() {
               submit();
             }}
           >
-            <label>邮箱地址</label>
+            <label>{t('邮箱地址', 'Email')}</label>
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               autoComplete="email"
             />
-            <label>登录密码</label>
+            <label>{t('登录密码', 'Password')}</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="至少 8 位，建议包含字母和数字"
+              placeholder={t('至少 8 位，建议包含字母和数字', 'At least 8 characters')}
               autoComplete="new-password"
             />
             <button type="submit" className="btn primary" disabled={loading || !email || !password}>
-              {loading ? '注册中...' : '注册并进入平台'}
+              {loading ? t('注册中...', 'Signing up...') : t('注册并进入平台', 'Create account')}
             </button>
           </form>
 
           <div className="auth-links">
-            <Link href="/auth/login">已有账号？去登录</Link>
-            <Link href="/auth/verify-email">注册后去验证邮箱</Link>
+            <Link href="/auth/login">{t('已有账号？去登录', 'Already have an account? Sign in')}</Link>
+            <Link href="/auth/verify-email">{t('注册后去验证邮箱', 'Verify email after registration')}</Link>
           </div>
 
           {feedback.text ? (

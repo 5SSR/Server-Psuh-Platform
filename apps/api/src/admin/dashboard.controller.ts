@@ -1,9 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
 import {
+  BargainStatus,
   DisputeStatus,
   OrderStatus,
   Prisma,
@@ -11,6 +8,11 @@ import {
   SettlementStatus,
   UserStatus
 } from '@prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { DashboardQueryDto } from '../common/dto/dashboard-query.dto';
 
 @Controller('admin/dashboard')
@@ -58,6 +60,14 @@ export class AdminDashboardController {
       kycPendingCount,
       sellerAppPendingCount,
       failedLogin24h,
+      bargainTotalCount,
+      bargainWaitSellerCount,
+      bargainWaitBuyerCount,
+      bargainAcceptedCount,
+      bargainRejectedCount,
+      bargainCanceledCount,
+      bargainWithOrderCount,
+      bargainRoundHighCount,
       recentOrders
     ] = await this.prisma.$transaction([
       this.prisma.user.count(),
@@ -131,6 +141,25 @@ export class AdminDashboardController {
           createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
         }
       }),
+      this.prisma.bargain.count(),
+      this.prisma.bargain.count({ where: { status: BargainStatus.WAIT_SELLER } }),
+      this.prisma.bargain.count({ where: { status: BargainStatus.WAIT_BUYER } }),
+      this.prisma.bargain.count({ where: { status: BargainStatus.ACCEPTED } }),
+      this.prisma.bargain.count({ where: { status: BargainStatus.REJECTED } }),
+      this.prisma.bargain.count({ where: { status: BargainStatus.CANCELED } }),
+      this.prisma.bargain.count({
+        where: {
+          orderId: { not: null }
+        }
+      }),
+      this.prisma.bargain.count({
+        where: {
+          round: { gte: 6 },
+          status: {
+            in: [BargainStatus.WAIT_BUYER, BargainStatus.WAIT_SELLER]
+          }
+        }
+      }),
       this.prisma.order.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -184,6 +213,18 @@ export class AdminDashboardController {
         byStatus: orderStatusMap,
         newInRange: newOrdersInRange,
         paidAmountInRange: this.toNumber(paidOrderAmountInRange._sum.price)
+      },
+      bargains: {
+        total: bargainTotalCount,
+        byStatus: {
+          [BargainStatus.WAIT_SELLER]: bargainWaitSellerCount,
+          [BargainStatus.WAIT_BUYER]: bargainWaitBuyerCount,
+          [BargainStatus.ACCEPTED]: bargainAcceptedCount,
+          [BargainStatus.REJECTED]: bargainRejectedCount,
+          [BargainStatus.CANCELED]: bargainCanceledCount
+        },
+        withOrder: bargainWithOrderCount,
+        highRoundActive: bargainRoundHighCount
       },
       finance: {
         settlementPendingAmount: this.toNumber(settlementPendingAgg._sum.amount),

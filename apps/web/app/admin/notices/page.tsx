@@ -14,6 +14,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/
 type Notice = {
   id: string;
   userId?: string | null;
+  channel?: 'SITE' | 'EMAIL' | 'TG' | 'SMS' | 'WECHAT_TEMPLATE' | string;
   type: string;
   status: 'PENDING' | 'SENT' | 'FAILED';
   payload?: {
@@ -51,6 +52,12 @@ export default function AdminNoticesPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [userId, setUserId] = useState('');
+  const [sendSite, setSendSite] = useState(true);
+  const [sendEmail, setSendEmail] = useState(false);
+  const [sendTg, setSendTg] = useState(false);
+  const [sendSms, setSendSms] = useState(false);
+  const [sendWechatTemplate, setSendWechatTemplate] = useState(false);
+  const [tgChatId, setTgChatId] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -116,6 +123,16 @@ export default function AdminNoticesPage() {
     setError('');
     setMessage('');
     try {
+      const channels = [
+        ...(sendSite ? ['SITE'] : []),
+        ...(sendEmail ? ['EMAIL'] : []),
+        ...(sendTg ? ['TG'] : []),
+        ...(sendSms ? ['SMS'] : []),
+        ...(sendWechatTemplate ? ['WECHAT_TEMPLATE'] : [])
+      ];
+      if (!channels.length) {
+        throw new Error('至少选择一个通知渠道');
+      }
       const res = await fetch(`${API_BASE}/admin/notices`, {
         method: 'POST',
         headers: {
@@ -126,7 +143,9 @@ export default function AdminNoticesPage() {
           userId: userId || undefined,
           type,
           title: title || undefined,
-          content
+          content,
+          channels,
+          tgChatId: sendTg ? tgChatId || undefined : undefined
         })
       });
       const data = await res.json();
@@ -147,8 +166,8 @@ export default function AdminNoticesPage() {
     <main className="page page-shell admin-console-page">
       <ConsolePageHeader
         eyebrow="管理后台 · 通知管理"
-        title="站内通知与触达记录"
-        description="支持面向全体用户或指定用户发送通知，统一查看发送结果与状态记录。"
+        title="多渠道通知与触达记录"
+        description="支持面向全体用户或指定用户发送站内 / 邮件 / Telegram 通知，并统一查看触达状态。"
         tags={[
           { label: '交易通知', tone: 'info' },
           { label: '系统公告', tone: 'warning' },
@@ -179,6 +198,18 @@ export default function AdminNoticesPage() {
             <label>指定用户 ID（可选）</label>
             <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="留空即广播" />
           </div>
+          <div className="field">
+            <label>Telegram ChatId（可选）</label>
+            <input value={tgChatId} onChange={(e) => setTgChatId(e.target.value)} placeholder="未填则用服务端默认" />
+          </div>
+        </div>
+
+        <div className="status-line">
+          <label><input type="checkbox" checked={sendSite} onChange={(e) => setSendSite(e.target.checked)} /> 站内通知</label>
+          <label><input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} /> 邮件通知</label>
+          <label><input type="checkbox" checked={sendTg} onChange={(e) => setSendTg(e.target.checked)} /> Telegram</label>
+          <label><input type="checkbox" checked={sendSms} onChange={(e) => setSendSms(e.target.checked)} /> SMS</label>
+          <label><input type="checkbox" checked={sendWechatTemplate} onChange={(e) => setSendWechatTemplate(e.target.checked)} /> 微信模板</label>
         </div>
 
         <div className="form">
@@ -223,7 +254,7 @@ export default function AdminNoticesPage() {
           </div>
           <div className="field">
             <label>通知渠道</label>
-            <input value="站内通知" disabled />
+            <input value="站内 / 邮件 / Telegram" disabled />
           </div>
         </div>
       </ConsolePanel>
@@ -236,13 +267,13 @@ export default function AdminNoticesPage() {
           <ConsoleEmpty text={loading ? '加载中...' : '暂无通知记录'} />
         ) : (
           <div className="console-table-wrap">
-            <table className="console-table">
+            <table className="console-table console-table-mobile">
               <thead>
                 <tr>
                   <th>通知</th>
                   <th>目标用户</th>
                   <th>类型</th>
-                  <th>状态</th>
+                  <th>渠道 / 状态</th>
                   <th>发送时间</th>
                   <th>操作</th>
                 </tr>
@@ -250,21 +281,24 @@ export default function AdminNoticesPage() {
               <tbody>
                 {filteredItems.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="通知">
                       <div className="console-row-primary">{item.payload?.title || item.type}</div>
                       <p className="console-row-sub">{item.payload?.content || '无内容'}</p>
                     </td>
-                    <td>
+                    <td data-label="目标用户">
                       <div className="console-row-primary">{item.user?.email || item.userId || '广播记录'}</div>
                     </td>
-                    <td>
+                    <td data-label="类型">
                       <div className="console-row-primary">{item.type}</div>
                     </td>
-                    <td>
-                      <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
+                    <td data-label="渠道 / 状态">
+                      <div className="console-inline-tags">
+                        <StatusBadge tone="info">{item.channel || 'SITE'}</StatusBadge>
+                        <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
+                      </div>
                     </td>
-                    <td>{formatDateTime(item.createdAt)}</td>
-                    <td>
+                    <td data-label="发送时间">{formatDateTime(item.createdAt)}</td>
+                    <td data-label="操作">
                       <button
                         type="button"
                         onClick={() => setSelectedId(item.id)}
@@ -302,6 +336,10 @@ export default function AdminNoticesPage() {
               <div className="spec-item">
                 <p className="label">状态</p>
                 <p className="value">{statusLabel[selectedItem.status] || selectedItem.status}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">通知渠道</p>
+                <p className="value">{selectedItem.channel || 'SITE'}</p>
               </div>
             </div>
 

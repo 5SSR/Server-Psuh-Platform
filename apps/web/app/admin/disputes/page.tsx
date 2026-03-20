@@ -231,7 +231,7 @@ export default function AdminDisputesPage() {
           <ConsoleEmpty text={loading ? '加载中...' : '暂无纠纷记录'} />
         ) : (
           <div className="console-table-wrap">
-            <table className="console-table">
+            <table className="console-table console-table-mobile">
               <thead>
                 <tr>
                   <th>工单 / 订单</th>
@@ -246,25 +246,25 @@ export default function AdminDisputesPage() {
               <tbody>
                 {filteredItems.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="工单 / 订单">
                       <div className="console-row-primary">{item.id}</div>
                       <p className="console-row-sub">订单：{item.orderId}</p>
                     </td>
-                    <td>
+                    <td data-label="发起方">
                       <div className="console-row-primary">{item.initiator}</div>
                     </td>
-                    <td>
+                    <td data-label="状态">
                       <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
                     </td>
-                    <td>
+                    <td data-label="当前结论">
                       <div className="console-row-primary">{item.result || '-'}</div>
                       <p className="console-row-sub">{item.resolution || '暂无处理说明'}</p>
                     </td>
-                    <td>
+                    <td data-label="证据数">
                       <div className="console-row-primary">{item.evidences?.length || 0}</div>
                     </td>
-                    <td>{formatDateTime(item.createdAt)}</td>
-                    <td>
+                    <td data-label="创建时间">{formatDateTime(item.createdAt)}</td>
+                    <td data-label="操作">
                       <button
                         type="button"
                         className={`btn ${selectedId === item.id ? 'primary' : 'secondary'} btn-sm`}
@@ -319,7 +319,7 @@ export default function AdminDisputesPage() {
                 <p className="muted">暂无证据</p>
               ) : (
                 <div className="console-table-wrap">
-                  <table className="console-table">
+                  <table className="console-table console-table-mobile">
                     <thead>
                       <tr>
                         <th>证据 ID</th>
@@ -332,11 +332,11 @@ export default function AdminDisputesPage() {
                     <tbody>
                       {selectedItem.evidences.map((ev) => (
                         <tr key={ev.id}>
-                          <td>{ev.id}</td>
-                          <td>{ev.userId}</td>
-                          <td>{ev.note || '-'}</td>
-                          <td>{formatDateTime(ev.createdAt)}</td>
-                          <td>
+                          <td data-label="证据 ID">{ev.id}</td>
+                          <td data-label="提交用户">{ev.userId}</td>
+                          <td data-label="备注">{ev.note || '-'}</td>
+                          <td data-label="提交时间">{formatDateTime(ev.createdAt)}</td>
+                          <td data-label="链接">
                             <a href={ev.url} target="_blank" rel="noreferrer">
                               查看证据
                             </a>

@@ -30,6 +30,12 @@ type Overview = {
     newInRange: number;
     paidAmountInRange: number;
   };
+  bargains: {
+    total: number;
+    byStatus: Record<string, number>;
+    withOrder: number;
+    highRoundActive: number;
+  };
   finance: {
     settlementPendingAmount: number;
     settlementPendingFee: number;
@@ -68,6 +74,21 @@ const orderStatusLabel: Record<string, string> = {
   DISPUTING: '纠纷中',
   CANCELED: '已取消'
 };
+
+const bargainStatusLabel: Record<string, string> = {
+  WAIT_SELLER: '待卖家响应',
+  WAIT_BUYER: '待买家响应',
+  ACCEPTED: '已成交',
+  REJECTED: '已拒绝',
+  CANCELED: '已取消'
+};
+
+function bargainStatusTone(status: string) {
+  if (status === 'ACCEPTED') return 'success' as const;
+  if (status === 'REJECTED') return 'danger' as const;
+  if (status === 'CANCELED') return 'warning' as const;
+  return 'info' as const;
+}
 
 function orderStatusTone(status: string) {
   if (status === 'COMPLETED') return 'success' as const;
@@ -166,6 +187,13 @@ export default function AdminDashboardPage() {
               <p className="metric-value">{data.users.total}</p>
               <p className="metric-tip">近 {data.range.days} 天新增 {data.users.newInRange}</p>
             </article>
+            <article className="metric-card">
+              <p className="metric-label">议价活跃会话</p>
+              <p className="metric-value">
+                {(data.bargains.byStatus.WAIT_BUYER || 0) + (data.bargains.byStatus.WAIT_SELLER || 0)}
+              </p>
+              <p className="metric-tip">高轮次风险 {data.bargains.highRoundActive} 条</p>
+            </article>
           </section>
 
           <section className="detail-grid">
@@ -199,6 +227,22 @@ export default function AdminDashboardPage() {
               <p className="muted">已结算手续费：{formatMoney(data.finance.settlementReleasedFee || 0)}</p>
               <p className="muted">待提现手续费：{formatMoney(data.finance.withdrawalPendingFee || 0)}</p>
             </article>
+
+            <article className="card stack-12">
+              <h3>议价转化态势</h3>
+              <div className="console-inline-tags">
+                {Object.entries(data.bargains.byStatus).map(([status, count]) => (
+                  <StatusBadge key={status} tone={bargainStatusTone(status)}>
+                    {(bargainStatusLabel[status] || status) + ` ${count}`}
+                  </StatusBadge>
+                ))}
+                <StatusBadge tone="success">已建单 {data.bargains.withOrder}</StatusBadge>
+                <StatusBadge tone={data.bargains.highRoundActive > 0 ? 'warning' : 'default'}>
+                  高轮次 {data.bargains.highRoundActive}
+                </StatusBadge>
+              </div>
+              <p className="muted">议价达成后自动转订单，若高轮次会话持续积压建议及时介入。</p>
+            </article>
           </section>
 
           <ConsolePanel
@@ -210,7 +254,7 @@ export default function AdminDashboardPage() {
               <ConsoleEmpty text="暂无最近订单" />
             ) : (
               <div className="console-table-wrap">
-                <table className="console-table">
+                <table className="console-table console-table-mobile">
                   <thead>
                     <tr>
                       <th>订单 / 商品</th>
@@ -223,24 +267,24 @@ export default function AdminDashboardPage() {
                   <tbody>
                     {data.recentOrders.map((item) => (
                       <tr key={item.id}>
-                        <td>
+                        <td data-label="订单 / 商品">
                           <div className="console-row-primary">{item.id}</div>
                           <p className="console-row-sub">{item.product?.title || '未知商品'}</p>
                         </td>
-                        <td>
+                        <td data-label="买家 / 卖家">
                           <div className="console-row-primary">买家：{item.buyer?.email || '-'}</div>
                           <p className="console-row-sub">卖家：{item.seller?.email || '-'}</p>
                         </td>
-                        <td>
+                        <td data-label="状态">
                           <StatusBadge tone={orderStatusTone(item.status)}>
                             {orderStatusLabel[item.status] || item.status}
                           </StatusBadge>
                         </td>
-                        <td>
+                        <td data-label="金额">
                           <div className="console-row-primary">{formatMoney(item.price)}</div>
                           <p className="console-row-sub">担保托管交易</p>
                         </td>
-                        <td>{formatDateTime(item.createdAt)}</td>
+                        <td data-label="创建时间">{formatDateTime(item.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

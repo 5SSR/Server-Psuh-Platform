@@ -76,6 +76,7 @@ body {
   font: var(--body);
   color: var(--color-text);
   background: radial-gradient(circle at 0 0, #f8fbff 0%, var(--color-bg) 36%, var(--color-bg) 100%);
+  overflow-x: hidden;
 }
 
 a {
@@ -206,6 +207,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-wrap: nowrap;
 }
 
 .nav-links {
@@ -224,6 +226,8 @@ h3 {
   padding: 8px 12px;
   cursor: pointer;
   transition: all 0.18s ease;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .nav-link:hover,
@@ -241,14 +245,36 @@ h3 {
   align-items: center;
   height: 30px;
   padding: 0 10px;
+  white-space: nowrap;
+  word-break: keep-all;
   border-radius: 999px;
   background: var(--color-primary-soft);
   color: var(--color-primary);
   font: 600 12px/1 var(--font-sans);
 }
 
+.nav-locale-select {
+  height: 32px;
+  min-width: 88px;
+  width: 88px;
+  max-width: 88px;
+  flex: 0 0 88px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: 500 12px/1 var(--font-sans);
+  padding: 0 10px;
+}
+
 .nav-group {
   position: relative;
+  flex-shrink: 0;
+}
+
+.nav-main > *,
+.nav-links > * {
+  flex-shrink: 0;
 }
 
 .nav-group-trigger {
@@ -382,6 +408,7 @@ h3 {
 .btn,
 button {
   font: 600 14px/1 var(--font-sans);
+  touch-action: manipulation;
 }
 
 .btn,
@@ -518,6 +545,14 @@ input[type='radio'] {
 
 textarea {
   resize: vertical;
+}
+
+/* 顶部导航语言切换器使用紧凑尺寸，避免被全局 select 宽度规则撑满 */
+.topbar .nav-locale-select {
+  width: 88px;
+  min-width: 88px;
+  max-width: 88px;
+  flex: 0 0 88px;
 }
 
 input:focus,
@@ -758,6 +793,8 @@ textarea:focus {
   border-radius: var(--radius-md);
   background: #fff;
   overflow: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .console-table {
@@ -793,6 +830,7 @@ textarea:focus {
   margin-top: 4px;
   color: var(--color-text-muted);
   font: var(--caption);
+  word-break: break-all;
 }
 
 .console-inline-tags {
@@ -1312,6 +1350,24 @@ pre.code {
     height: 34px;
     padding: 0 10px;
   }
+
+  .admin-console-page .console-table {
+    min-width: 820px;
+  }
+
+  .admin-console-page .console-panel-head {
+    align-items: stretch;
+  }
+
+  .admin-console-page .console-panel-head .actions {
+    width: 100%;
+  }
+
+  .admin-console-page .console-panel-head .actions > .btn,
+  .admin-console-page .console-panel-head .actions > button {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1362,16 +1418,118 @@ pre.code {
   }
 
   .console-table {
-    min-width: 740px;
+    min-width: 620px;
   }
 
   .console-table th,
   .console-table td {
+    padding: 9px 8px;
+  }
+
+  .console-table-mobile {
+    min-width: 0;
+    display: block;
+  }
+
+  .console-table-mobile thead {
+    display: none;
+  }
+
+  .console-table-mobile tbody {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .console-table-mobile tr {
+    display: grid;
+    gap: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: #fff;
     padding: 10px;
+  }
+
+  .console-table-mobile td {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr);
+    gap: 8px;
+    align-items: flex-start;
+    border-bottom: none;
+    padding: 0;
+  }
+
+  .console-table-mobile td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font: 600 11px/1.4 var(--font-sans);
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+
+  .console-table-mobile td[data-label='操作'] {
+    grid-template-columns: 1fr;
+  }
+
+  .console-table-mobile td[data-label='操作']::before {
+    display: none;
+  }
+
+  .console-table-mobile td[data-label='操作'] .btn,
+  .console-table-mobile td[data-label='操作'] button {
+    width: 100%;
+  }
+
+  .console-row-primary {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .console-row-sub {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .console-inline-tags {
+    gap: 4px;
+  }
+
+  .console-inline-tags .status-chip {
+    height: 22px;
+    padding: 0 8px;
+    font-size: 11px;
   }
 
   .console-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .console-detail .spec-item .value {
+    word-break: break-word;
+  }
+
+  .console-detail textarea {
+    min-height: 116px;
+  }
+
+  .console-detail .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 12;
+    margin-top: 0;
+    padding-top: 10px;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(248, 250, 252, 0.94) 24%, rgba(248, 250, 252, 1) 100%);
+  }
+
+  .btn-sm {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 
   .actions {

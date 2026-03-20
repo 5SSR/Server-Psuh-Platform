@@ -1,9 +1,14 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
+import { NoticeService } from '../notice/notice.service';
 
 @Injectable()
 export class UserInteractionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly noticeService: NoticeService
+  ) {}
 
   // ---- Favorites ----
   async addFavorite(userId: string, productId: string) {
@@ -111,21 +116,18 @@ export class UserInteractionService {
           this.prisma.priceAlert.update({
             where: { id: alert.id },
             data: { triggered: true }
-          }),
-          this.prisma.notice.create({
-            data: {
-              userId: alert.userId,
-              type: 'PRICE_ALERT',
-              channel: 'SITE',
-              payload: {
-                productId: alert.product.id,
-                productTitle: alert.product.title,
-                targetPrice: alert.targetPrice,
-                currentPrice: alert.product.salePrice.toNumber()
-              } as any
-            }
           })
         ]);
+        await this.noticeService.createSystemNotice({
+          userId: alert.userId,
+          type: 'PRICE_ALERT',
+          payload: {
+            productId: alert.product.id,
+            productTitle: alert.product.title,
+            targetPrice: alert.targetPrice,
+            currentPrice: alert.product.salePrice.toNumber()
+          }
+        });
         triggered++;
       }
     }

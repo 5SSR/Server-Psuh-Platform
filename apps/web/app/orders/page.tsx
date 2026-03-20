@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
-type Channel = 'BALANCE' | 'ALIPAY' | 'WECHAT' | 'MANUAL';
+type Channel = 'BALANCE' | 'ALIPAY' | 'WECHAT' | 'USDT' | 'MANUAL';
 
 type Order = {
   id: string;
@@ -13,7 +13,36 @@ type Order = {
   payStatus: string;
   payChannel: string;
   price: number;
+  fee?: number;
+  escrowAmount?: number;
   product?: { id: string; title: string };
+  review?: {
+    id: string;
+    rating: number;
+    content?: string | null;
+    createdAt: string;
+  } | null;
+};
+
+type BuyerChecklist = {
+  configMatch: boolean;
+  panelAccessible: boolean;
+  expireMatched: boolean;
+  lineQualityOk: boolean;
+  note: string;
+};
+
+type ReviewDraft = {
+  rating: number;
+  content: string;
+};
+
+const defaultChecklist: BuyerChecklist = {
+  configMatch: false,
+  panelAccessible: false,
+  expireMatched: false,
+  lineQualityOk: false,
+  note: ''
 };
 
 type TimelineItem = {
@@ -99,8 +128,10 @@ export default function OrdersPage() {
   const [timelineLoadingId, setTimelineLoadingId] = useState('');
   const [disputeLoadingId, setDisputeLoadingId] = useState('');
   const [payChannelByOrder, setPayChannelByOrder] = useState<Record<string, Channel>>({});
+  const [checklistByOrder, setChecklistByOrder] = useState<Record<string, BuyerChecklist>>({});
   const [paymentIntentMap, setPaymentIntentMap] = useState<Record<string, PaymentIntent>>({});
   const [paymentStatusMap, setPaymentStatusMap] = useState<Record<string, PaymentStatusInfo>>({});
+  const [reviewDraftByOrder, setReviewDraftByOrder] = useState<Record<string, ReviewDraft>>({});
 
   const stats = useMemo(() => {
     return orders.reduce(
@@ -162,6 +193,9 @@ export default function OrdersPage() {
     return '第三方渠道支付需等待回调确认，超时可切换渠道后重新发起。';
   };
 
+  const getReviewDraft = (orderId: string): ReviewDraft =>
+    reviewDraftByOrder[orderId] || { rating: 5, content: '' };
+
   const pay = async (orderId: string) => {
     if (!token) return;
     setLoading(true);
@@ -169,8 +203,8 @@ export default function OrdersPage() {
     setError('');
     try {
       const channel = selectedChannel(orderId);
-      const res = await fetch(`${API_BASE}/orders/${orderId}/pay`, {
-        method: 'PATCH',
+      const res = await fetch(`${API_BASE}/payments/${orderId}/initiate`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -241,19 +275,58 @@ export default function OrdersPage() {
     }
   };
 
+  const submitReview = async (orderId: string) => {
+    if (!token) return;
+    setLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      const draft = getReviewDraft(orderId);
+      const res = await fetch(`${API_BASE}/orders/${orderId}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rating: Number(draft.rating) || 5,
+          content: draft.content?.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '提交评价失败');
+      setMessage(data.message || '评价提交成功');
+      await load();
+    } catch (e: any) {
+      setError(e.message || '提交评价失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirm = async (orderId: string) => {
     if (!token) return;
     setLoading(true);
     setMessage('');
     setError('');
     try {
+      const checklist = checklistByOrder[orderId] || defaultChecklist;
       const res = await fetch(`${API_BASE}/orders/${orderId}/confirm`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ remark: '买家确认收货' })
+        body: JSON.stringify({
+          remark: checklist.note?.trim() || '买家确认收货',
+          checklist: {
+            configMatch: checklist.configMatch,
+            panelAccessible: checklist.panelAccessible,
+            expireMatched: checklist.expireMatched,
+            lineQualityOk: checklist.lineQualityOk,
+            note: checklist.note?.trim() || undefined
+          }
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || '确认失败');
@@ -481,10 +554,18 @@ export default function OrdersPage() {
             </div>
             <p className="card-meta">支付状态：{order.payStatus} · 渠道：{order.payChannel}</p>
             <p className="price">¥{Number(order.price).toFixed(2)}</p>
+            <p className="card-meta">
+              服务费：¥{Number(order.fee || 0).toFixed(2)} · 托管金额：¥{Number(order.escrowAmount || order.price).toFixed(2)}
+            </p>
             <div className="actions">
               <Link className="btn ghost" href={`/products/${order.product?.id ?? ''}`}>
                 商品详情
               </Link>
+              {order.status === 'PENDING_PAYMENT' && (
+                <Link className="btn primary" href={`/pay/${order.id}`}>
+                  进入支付页
+                </Link>
+              )}
               {order.status === 'PENDING_PAYMENT' && (
                 <button onClick={() => pay(order.id)} disabled={loading}>
                   发起支付
@@ -547,6 +628,7 @@ export default function OrdersPage() {
                   <option value="BALANCE">BALANCE（余额）</option>
                   <option value="ALIPAY">ALIPAY（模拟）</option>
                   <option value="WECHAT">WECHAT（模拟）</option>
+                  <option value="USDT">USDT（模拟）</option>
                   <option value="MANUAL">MANUAL（人工）</option>
                 </select>
                 <p className="muted">{paymentHint(order.id)}</p>
@@ -566,6 +648,95 @@ export default function OrdersPage() {
                   }
                   placeholder="例如：卖家超时未交付"
                 />
+              </div>
+            )}
+
+            {order.status === 'BUYER_CHECKING' && (
+              <div className="card nested stack-12">
+                <h3>买家验机清单</h3>
+                <div className="status-line">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={(checklistByOrder[order.id] || defaultChecklist).configMatch}
+                      onChange={(e) =>
+                        setChecklistByOrder((prev) => ({
+                          ...prev,
+                          [order.id]: {
+                            ...(prev[order.id] || defaultChecklist),
+                            configMatch: e.target.checked
+                          }
+                        }))
+                      }
+                    />
+                    配置与商品描述一致
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={(checklistByOrder[order.id] || defaultChecklist).panelAccessible}
+                      onChange={(e) =>
+                        setChecklistByOrder((prev) => ({
+                          ...prev,
+                          [order.id]: {
+                            ...(prev[order.id] || defaultChecklist),
+                            panelAccessible: e.target.checked
+                          }
+                        }))
+                      }
+                    />
+                    后台/面板可正常登录
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={(checklistByOrder[order.id] || defaultChecklist).expireMatched}
+                      onChange={(e) =>
+                        setChecklistByOrder((prev) => ({
+                          ...prev,
+                          [order.id]: {
+                            ...(prev[order.id] || defaultChecklist),
+                            expireMatched: e.target.checked
+                          }
+                        }))
+                      }
+                    />
+                    到期时间与描述一致
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={(checklistByOrder[order.id] || defaultChecklist).lineQualityOk}
+                      onChange={(e) =>
+                        setChecklistByOrder((prev) => ({
+                          ...prev,
+                          [order.id]: {
+                            ...(prev[order.id] || defaultChecklist),
+                            lineQualityOk: e.target.checked
+                          }
+                        }))
+                      }
+                    />
+                    线路质量符合预期
+                  </label>
+                </div>
+                <div className="form">
+                  <label>验机备注（可选）</label>
+                  <textarea
+                    rows={3}
+                    value={(checklistByOrder[order.id] || defaultChecklist).note}
+                    onChange={(e) =>
+                      setChecklistByOrder((prev) => ({
+                        ...prev,
+                        [order.id]: {
+                          ...(prev[order.id] || defaultChecklist),
+                          note: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="例如：已核对配置、线路和到期时间，符合描述"
+                  />
+                </div>
               </div>
             )}
 
@@ -667,6 +838,67 @@ export default function OrdersPage() {
                     - {ev.url} {ev.note ? `（${ev.note}）` : ''}
                   </p>
                 ))}
+              </div>
+            )}
+
+            {(order.status === 'COMPLETED' || order.status === 'COMPLETED_PENDING_SETTLEMENT') && (
+              <div className="card nested stack-12">
+                <h3>订单评价</h3>
+                {order.review ? (
+                  <div className="stack-8">
+                    <p className="muted">评分：{order.review.rating} / 5</p>
+                    <p className="muted">
+                      评价时间：{new Date(order.review.createdAt).toLocaleString('zh-CN')}
+                    </p>
+                    <p>{order.review.content || '买家未填写文字评价。'}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="form">
+                      <label>评分</label>
+                      <select
+                        value={getReviewDraft(order.id).rating}
+                        onChange={(e) =>
+                          setReviewDraftByOrder((prev) => ({
+                            ...prev,
+                            [order.id]: {
+                              ...getReviewDraft(order.id),
+                              rating: Number(e.target.value)
+                            }
+                          }))
+                        }
+                      >
+                        <option value={5}>5 星</option>
+                        <option value={4}>4 星</option>
+                        <option value={3}>3 星</option>
+                        <option value={2}>2 星</option>
+                        <option value={1}>1 星</option>
+                      </select>
+                    </div>
+                    <div className="form">
+                      <label>评价内容（可选）</label>
+                      <textarea
+                        rows={3}
+                        value={getReviewDraft(order.id).content}
+                        onChange={(e) =>
+                          setReviewDraftByOrder((prev) => ({
+                            ...prev,
+                            [order.id]: {
+                              ...getReviewDraft(order.id),
+                              content: e.target.value
+                            }
+                          }))
+                        }
+                        placeholder="例如：交付快、配置一致、沟通顺畅"
+                      />
+                    </div>
+                    <div className="actions">
+                      <button className="btn primary" onClick={() => submitReview(order.id)} disabled={loading}>
+                        提交评价
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

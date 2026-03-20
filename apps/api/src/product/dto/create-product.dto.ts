@@ -9,7 +9,7 @@ import {
   Min,
   IsArray
 } from 'class-validator';
-import { DeliveryType, ProductCategory } from '@prisma/client';
+import { DeliveryType, FeePayer, ProductCategory } from '@prisma/client';
 
 export class CreateProductDto {
   @IsString()
@@ -105,11 +105,23 @@ export class CreateProductDto {
   @IsEnum(DeliveryType)
   deliveryType: DeliveryType;
 
+  @IsOptional()
+  @IsEnum(FeePayer)
+  feePayer?: FeePayer;
+
   @IsBoolean()
   canChangeEmail: boolean;
 
   @IsBoolean()
   canChangeRealname: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canTest?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canTransfer?: boolean;
 
   @IsOptional()
   @IsArray()

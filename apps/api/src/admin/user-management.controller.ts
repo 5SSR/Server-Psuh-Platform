@@ -9,20 +9,27 @@ import {
   Query,
   UseGuards
 } from '@nestjs/common';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { NoticeChannel, Prisma, UserRole, UserStatus } from '@prisma/client';
+import { NoticeService } from '../notice/notice.service';
+
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+
 
 @Controller('admin/users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class AdminUserManagementController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly noticeService: NoticeService
+  ) {}
 
   private presentRole(role: string) {
     return role === 'ADMIN' ? 'ADMIN' : 'USER';
@@ -128,16 +135,13 @@ export class AdminUserManagementController {
       data: { status: dto.status }
     });
 
-    await this.prisma.notice.create({
-      data: {
-        userId,
-        type: dto.status === UserStatus.BANNED ? 'ACCOUNT_BANNED' : 'ACCOUNT_RESTORED',
-        channel: NoticeChannel.SITE,
-        payload: {
-          reason: dto.reason,
-          operatorId: admin.userId,
-          at: new Date().toISOString()
-        } as any
+    await this.noticeService.createSystemNotice({
+      userId,
+      type: dto.status === UserStatus.BANNED ? 'ACCOUNT_BANNED' : 'ACCOUNT_RESTORED',
+      payload: {
+        reason: dto.reason,
+        operatorId: admin.userId,
+        at: new Date().toISOString()
       }
     });
 

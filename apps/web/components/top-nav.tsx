@@ -3,6 +3,7 @@
 import Link, { type LinkProps } from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import LocaleSwitch from './locale-switch';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -16,19 +17,29 @@ type CurrentUser = {
 const MAIN_LINKS: NavItem[] = [
   { href: '/', label: '首页' },
   { href: '/products', label: '交易市场' },
-  { href: '/help', label: '担保流程' }
+  { href: '/wanted', label: '求购市场' },
+  { href: '/bargains', label: '议价中心' },
+  { href: '/escrow', label: '担保流程' }
 ];
 
 const SELLER_LINKS: NavItem[] = [
   { href: '/seller/dashboard', label: '卖家看板' },
+  { href: '/seller/store', label: '店铺资料' },
+  { href: '/seller/open-api', label: '开放接口' },
   { href: '/seller/products', label: '发布/管理商品' },
+  { href: '/seller/consignments', label: '寄售申请' },
   { href: '/seller/orders', label: '履约交付' },
+  { href: '/bargains', label: '议价会话' },
   { href: '/seller/settlements', label: '结算放款' }
 ];
 
 const BUYER_LINKS: NavItem[] = [
   { href: '/orders', label: '我的订单' },
+  { href: '/wanted/mine', label: '我的求购' },
+  { href: '/bargains', label: '我的议价' },
   { href: '/wallet', label: '钱包与结算' },
+  { href: '/profile/history', label: '浏览历史' },
+  { href: '/profile/alerts', label: '价格提醒' },
   { href: '/notices', label: '通知中心' },
   { href: '/profile/verify', label: '认证中心' }
 ];
@@ -38,6 +49,8 @@ const ADMIN_LINKS: NavItem[] = [
   { href: '/admin/users', label: '用户管理' },
   { href: '/admin/products', label: '商品审核' },
   { href: '/admin/orders', label: '订单核验' },
+  { href: '/admin/bargains', label: '议价管理' },
+  { href: '/admin/consignments', label: '寄售审核' },
   { href: '/admin/payments', label: '支付监控' },
   { href: '/admin/reconcile', label: '支付对账' },
   { href: '/admin/settlements', label: '结算放款' },
@@ -45,6 +58,7 @@ const ADMIN_LINKS: NavItem[] = [
   { href: '/admin/disputes', label: '纠纷仲裁' },
   { href: '/admin/withdrawals', label: '提现审核' },
   { href: '/admin/risk', label: '风控策略' },
+  { href: '/admin/open-api', label: '开放接口监控' },
   { href: '/admin/notices', label: '通知管理' },
   { href: '/admin/content', label: '内容运营' },
   { href: '/admin/logs', label: '操作日志' }
@@ -73,10 +87,22 @@ export default function TopNav() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [ready, setReady] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [locale, setLocale] = useState('zh-CN');
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('idc_locale') || 'zh-CN';
+    setLocale(saved);
+    const handler = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail;
+      if (next) setLocale(next);
+    };
+    window.addEventListener('locale-change', handler as EventListener);
+    return () => window.removeEventListener('locale-change', handler as EventListener);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('idc_token');
@@ -123,12 +149,65 @@ export default function TopNav() {
     return currentUser.role === 'ADMIN' ? '管理员' : '认证用户';
   }, [currentUser]);
 
+  const isEn = locale.startsWith('en');
+
+  const tr = (zh: string, en: string) => (isEn ? en : zh);
+  const navRoleLabel = isEn
+    ? navRole === '管理员'
+      ? 'Admin'
+      : navRole === '认证用户'
+        ? 'Verified User'
+        : 'Guest'
+    : navRole;
+
+  const labelMap: Record<string, string> = {
+    首页: 'Home',
+    交易市场: 'Marketplace',
+    求购市场: 'Wanted',
+    议价中心: 'Bargain',
+    担保流程: 'Escrow',
+    卖家看板: 'Seller Dashboard',
+    店铺资料: 'Store Profile',
+    开放接口: 'Open API',
+    '发布/管理商品': 'Products',
+    寄售申请: 'Consignment',
+    履约交付: 'Delivery',
+    议价会话: 'Negotiations',
+    结算放款: 'Settlements',
+    我的订单: 'My Orders',
+    我的求购: 'My Wanted',
+    我的议价: 'My Bargains',
+    钱包与结算: 'Wallet',
+    浏览历史: 'History',
+    价格提醒: 'Price Alerts',
+    通知中心: 'Notices',
+    认证中心: 'Verification',
+    运营看板: 'Ops Dashboard',
+    用户管理: 'Users',
+    商品审核: 'Products',
+    订单核验: 'Orders',
+    议价管理: 'Bargains',
+    寄售审核: 'Consignment',
+    支付监控: 'Payments',
+    支付对账: 'Reconcile',
+    退款审核: 'Refunds',
+    纠纷仲裁: 'Disputes',
+    提现审核: 'Withdrawals',
+    风控策略: 'Risk',
+    开放接口监控: 'Open API Monitor',
+    通知管理: 'Notice Admin',
+    内容运营: 'Content',
+    操作日志: 'Audit Logs'
+  };
+
+  const showLabel = (label: string) => (isEn ? (labelMap[label] || label) : label);
+
   return (
     <nav className="topbar">
       <div className="topbar-inner">
         <Link href="/" className="logo">
           <span className="logo-mark" aria-hidden="true" />
-          IDC 服务器担保交易
+          {tr('IDC 服务器担保交易', 'IDC Server Escrow')}
         </Link>
 
         <div className="nav-main">
@@ -138,7 +217,7 @@ export default function TopNav() {
               href={item.href}
               className={`nav-link${pathname === item.href ? ' active' : ''}`}
             >
-              {item.label}
+              {showLabel(item.label)}
             </Link>
           ))}
         </div>
@@ -146,18 +225,24 @@ export default function TopNav() {
         <div className="nav-links">
           {ready && currentUser ? (
             <>
-              <NavGroup label="买家中心" links={BUYER_LINKS} />
-              <NavGroup label="卖家中心" links={SELLER_LINKS} />
-              {currentUser.role === 'ADMIN' && <NavGroup label="管理后台" links={ADMIN_LINKS} />}
-              <span className="nav-role">{navRole}</span>
+              <NavGroup label={tr('买家中心', 'Buyer')} links={BUYER_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))} />
+              <NavGroup label={tr('卖家中心', 'Seller')} links={SELLER_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))} />
+              {currentUser.role === 'ADMIN' && (
+                <NavGroup
+                  label={tr('管理后台', 'Admin')}
+                  links={ADMIN_LINKS.map((item) => ({ ...item, label: showLabel(item.label) }))}
+                />
+              )}
+              <LocaleSwitch />
+              <span className="nav-role">{navRoleLabel}</span>
               <button className="nav-btn" onClick={logout} type="button">
-                退出
+                {tr('退出', 'Logout')}
               </button>
             </>
           ) : (
             <>
-              <Link href="/auth/login">登录</Link>
-              <Link href="/auth/register">注册</Link>
+              <Link href="/auth/login">{tr('登录', 'Login')}</Link>
+              <Link href="/auth/register">{tr('注册', 'Sign up')}</Link>
             </>
           )}
         </div>
@@ -166,7 +251,7 @@ export default function TopNav() {
           type="button"
           className="nav-mobile-toggle"
           onClick={() => setMobileOpen((v) => !v)}
-          aria-label="切换菜单"
+          aria-label={tr('切换菜单', 'Toggle Menu')}
         >
           {mobileOpen ? '×' : '≡'}
         </button>
@@ -174,10 +259,10 @@ export default function TopNav() {
 
       <div className={`nav-mobile-panel${mobileOpen ? ' open' : ''}`}>
         <div className="nav-mobile-block">
-          <p className="nav-mobile-block-title">平台导航</p>
+          <p className="nav-mobile-block-title">{tr('平台导航', 'Navigation')}</p>
           {MAIN_LINKS.map((item) => (
             <Link key={String(item.href)} href={item.href}>
-              {item.label}
+              {showLabel(item.label)}
             </Link>
           ))}
         </div>
@@ -185,44 +270,46 @@ export default function TopNav() {
         {ready && currentUser ? (
           <>
             <div className="nav-mobile-block">
-              <p className="nav-mobile-block-title">买家中心</p>
+              <p className="nav-mobile-block-title">{tr('买家中心', 'Buyer')}</p>
               {BUYER_LINKS.map((item) => (
                 <Link key={String(item.href)} href={item.href}>
-                  {item.label}
+                  {showLabel(item.label)}
                 </Link>
               ))}
             </div>
             <div className="nav-mobile-block">
-              <p className="nav-mobile-block-title">卖家中心</p>
+              <p className="nav-mobile-block-title">{tr('卖家中心', 'Seller')}</p>
               {SELLER_LINKS.map((item) => (
                 <Link key={String(item.href)} href={item.href}>
-                  {item.label}
+                  {showLabel(item.label)}
                 </Link>
               ))}
             </div>
             {currentUser.role === 'ADMIN' && (
               <div className="nav-mobile-block">
-                <p className="nav-mobile-block-title">管理后台</p>
+                <p className="nav-mobile-block-title">{tr('管理后台', 'Admin')}</p>
                 {ADMIN_LINKS.map((item) => (
                   <Link key={String(item.href)} href={item.href}>
-                    {item.label}
+                    {showLabel(item.label)}
                   </Link>
                 ))}
               </div>
             )}
             <div className="nav-mobile-block">
-              <p className="nav-mobile-block-title">账户</p>
-              <div className="muted">当前身份：{navRole}</div>
+              <p className="nav-mobile-block-title">{tr('账户', 'Account')}</p>
+              <LocaleSwitch />
+              <div className="muted">{tr('当前身份：', 'Role: ')}{navRoleLabel}</div>
               <button type="button" onClick={logout}>
-                退出登录
+                {tr('退出登录', 'Logout')}
               </button>
             </div>
           </>
         ) : (
           <div className="nav-mobile-block">
-            <p className="nav-mobile-block-title">账户</p>
-            <Link href="/auth/login">登录</Link>
-            <Link href="/auth/register">注册</Link>
+            <p className="nav-mobile-block-title">{tr('账户', 'Account')}</p>
+            <LocaleSwitch />
+            <Link href="/auth/login">{tr('登录', 'Login')}</Link>
+            <Link href="/auth/register">{tr('注册', 'Sign up')}</Link>
           </div>
         )}
       </div>

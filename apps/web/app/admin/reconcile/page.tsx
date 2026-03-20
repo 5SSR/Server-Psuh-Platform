@@ -126,6 +126,7 @@ export default function AdminReconcilePage() {
           <select value={channel} onChange={(e) => setChannel(e.target.value)}>
             <option value="ALIPAY">ALIPAY</option>
             <option value="WECHAT">WECHAT</option>
+            <option value="USDT">USDT</option>
           </select>
         </div>
         <div className="card">

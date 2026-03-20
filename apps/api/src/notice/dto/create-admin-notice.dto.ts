@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateAdminNoticeDto {
   @IsOptional()
@@ -17,4 +17,13 @@ export class CreateAdminNoticeDto {
   @IsString()
   @MaxLength(500)
   content: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  channels?: string[];
+
+  @IsOptional()
+  @IsString()
+  tgChatId?: string;
 }

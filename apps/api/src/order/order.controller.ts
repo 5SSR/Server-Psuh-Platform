@@ -8,21 +8,25 @@ import {
   Query,
   UseGuards
 } from '@nestjs/common';
-import { OrderService } from './order.service';
+import { PayChannel } from '@prisma/client';
+
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { PaymentService } from '../payment/payment.service';
+
+import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PayOrderDto } from './dto/pay-order.dto';
 import { DeliverDto } from './dto/deliver.dto';
 import { ConfirmDto } from './dto/confirm.dto';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { JwtAuthGuard as Guard } from '../common/guards/jwt-auth.guard';
-import { PaymentService } from '../payment/payment.service';
-import { PayChannel } from '@prisma/client';
+import { CreateOrderReviewDto } from './dto/create-order-review.dto';
+
+
 
 @Controller('orders')
-@UseGuards(Guard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class OrderController {
   constructor(
     private readonly orderService: OrderService,
@@ -87,5 +91,23 @@ export class OrderController {
   @Get(':id/timeline')
   getTimeline(@Param('id') id: string) {
     return this.orderService.orderTimeline(id);
+  }
+
+  @Get(':id/review')
+  getReview(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string
+  ) {
+    return this.orderService.getOrderReview(id, user.userId);
+  }
+
+  @Post(':id/review')
+  @Roles('USER')
+  review(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string,
+    @Body() dto: CreateOrderReviewDto
+  ) {
+    return this.orderService.submitOrderReview(id, user.userId, dto);
   }
 }

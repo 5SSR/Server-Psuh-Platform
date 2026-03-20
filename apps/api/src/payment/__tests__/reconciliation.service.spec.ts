@@ -1,15 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { PayChannel } from '@prisma/client';
+
 import { ReconciliationService } from '../reconciliation.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PayChannel } from '@prisma/client';
 import { AlipayGateway } from '../gateways/alipay.gateway';
 import { WechatGateway } from '../gateways/wechat.gateway';
+import { UsdtGateway } from '../gateways/usdt.gateway';
 
 describe('ReconciliationService', () => {
   let service: ReconciliationService;
   let prisma: any;
   let alipay: any;
   let wechat: any;
+  let usdt: any;
 
   beforeEach(async () => {
     prisma = {
@@ -29,13 +32,15 @@ describe('ReconciliationService', () => {
 
     alipay = { channel: PayChannel.ALIPAY, fetchTransactions: jest.fn().mockResolvedValue([]) };
     wechat = { channel: PayChannel.WECHAT, fetchTransactions: jest.fn().mockResolvedValue([]) };
+    usdt = { channel: PayChannel.USDT, fetchTransactions: jest.fn().mockResolvedValue([]) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReconciliationService,
         { provide: PrismaService, useValue: prisma },
         { provide: AlipayGateway, useValue: alipay },
-        { provide: WechatGateway, useValue: wechat }
+        { provide: WechatGateway, useValue: wechat },
+        { provide: UsdtGateway, useValue: usdt }
       ]
     }).compile();
 

@@ -8,18 +8,23 @@ import {
   Post,
   UseGuards
 } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { NoticeService } from '../notice/notice.service';
+
 import { ApplySellerDto } from './dto/apply-seller.dto';
 import { SubmitKycDto } from './dto/submit-kyc.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { NoticeChannel } from '@prisma/client';
 
 @Controller('user')
 @UseGuards(JwtAuthGuard)
 export class UserController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly noticeService: NoticeService
+  ) {}
 
   private presentRole(role: string) {
     return role === 'ADMIN' ? 'ADMIN' : 'USER';
@@ -109,13 +114,10 @@ export class UserController {
       }
     });
 
-    await this.prisma.notice.create({
-      data: {
-        userId: user.userId,
-        type: 'KYC_SUBMITTED',
-        channel: NoticeChannel.SITE,
-        payload: { at: new Date().toISOString() } as any
-      }
+    await this.noticeService.createSystemNotice({
+      userId: user.userId,
+      type: 'KYC_SUBMITTED',
+      payload: { at: new Date().toISOString() }
     });
 
     return { message: '实名认证资料已提交，等待管理员审核', kyc: result };
@@ -169,13 +171,10 @@ export class UserController {
       }
     });
 
-    await this.prisma.notice.create({
-      data: {
-        userId: user.userId,
-        type: 'SELLER_APPLICATION_SUBMITTED',
-        channel: NoticeChannel.SITE,
-        payload: { at: new Date().toISOString() } as any
-      }
+    await this.noticeService.createSystemNotice({
+      userId: user.userId,
+      type: 'SELLER_APPLICATION_SUBMITTED',
+      payload: { at: new Date().toISOString() }
     });
 
     return { message: '交易资质申请已提交，等待管理员审核', application };

@@ -12,11 +12,14 @@ const ADMIN_CONSOLE_LINKS: AdminNavItem[] = [
   { href: '/admin/dashboard', label: '看板' },
   { href: '/admin/products', label: '商品审核' },
   { href: '/admin/orders', label: '订单核验' },
+  { href: '/admin/bargains', label: '议价管理' },
+  { href: '/admin/consignments', label: '寄售审核' },
   { href: '/admin/payments', label: '支付监控' },
   { href: '/admin/refunds', label: '退款审核' },
   { href: '/admin/disputes', label: '纠纷仲裁' },
   { href: '/admin/withdrawals', label: '提现审核' },
   { href: '/admin/users', label: '用户管理' },
+  { href: '/admin/logs', label: '操作审计' },
   { href: '/admin/notices', label: '通知管理' },
   { href: '/admin/settlements', label: '结算放款' }
 ];

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { api } from '../../lib/api';
 
+export const dynamic = 'force-dynamic';
+
 const FLOW = [
   {
     title: '1. 卖家上架并提交审核',

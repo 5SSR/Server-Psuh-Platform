@@ -7,24 +7,30 @@ import {
   Req,
   UseGuards
 } from '@nestjs/common';
+
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { SecurityLogQueryDto } from './dto/security-log-query.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { VerifyMfaDto } from './dto/verify-mfa.dto';
-import { Request } from 'express';
+
+interface RequestMeta {
+  ip?: string;
+  headers: Record<string, string | string[] | undefined>;
+}
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  private resolveClientIp(req: Request) {
+  private resolveClientIp(req: RequestMeta) {
     const xff = req.headers['x-forwarded-for'];
     if (Array.isArray(xff) && xff.length > 0) {
       return xff[0].split(',')[0].trim();
@@ -41,7 +47,7 @@ export class AuthController {
   }
 
   @Post('login')
-  login(@Body() dto: LoginDto, @Req() req: Request) {
+  login(@Body() dto: LoginDto, @Req() req: RequestMeta) {
     return this.authService.login(dto, {
       ip: this.resolveClientIp(req),
       userAgent: req.headers['user-agent']

@@ -1,9 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AuthService } from '../auth.service';
-import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { BadRequestException, ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcryptjs';
+
+import { PrismaService } from '../../prisma/prisma.service';
+import { AuthService } from '../auth.service';
+import { NoticeService } from '../../notice/notice.service';
+import { RiskService } from '../../risk/risk.service';
 
 jest.mock('bcryptjs');
 jest.mock('otplib', () => ({
@@ -16,6 +20,8 @@ describe('AuthService', () => {
   let service: AuthService;
   let prisma: any;
   let jwt: any;
+  let noticeService: any;
+  let riskService: any;
 
   beforeEach(async () => {
     prisma = {
@@ -35,7 +41,6 @@ describe('AuthService', () => {
         count: jest.fn(),
         findMany: jest.fn(),
       },
-      notice: { create: jest.fn() },
       $transaction: jest.fn((cb) => {
         if (typeof cb === 'function') return cb(prisma);
         return Promise.all(cb);
@@ -45,12 +50,20 @@ describe('AuthService', () => {
     jwt = {
       sign: jest.fn(() => 'mock-jwt-token'),
     };
+    noticeService = {
+      createSystemNotice: jest.fn().mockResolvedValue({}),
+    };
+    riskService = {
+      evaluate: jest.fn().mockResolvedValue({ action: 'ALLOW', reason: 'ok' }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwt },
+        { provide: NoticeService, useValue: noticeService },
+        { provide: RiskService, useValue: riskService },
       ],
     }).compile();
 
@@ -69,7 +82,6 @@ describe('AuthService', () => {
       });
       prisma.authCode.updateMany.mockResolvedValue({ count: 0 });
       prisma.authCode.create.mockResolvedValue({});
-      prisma.notice.create.mockResolvedValue({});
 
       const result = await service.register({ email: 'test@test.com', password: 'Pass1234' });
       expect(result).toHaveProperty('token', 'mock-jwt-token');
@@ -78,7 +90,6 @@ describe('AuthService', () => {
 
     it('should throw on duplicate email', async () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-      const { PrismaClientKnownRequestError } = require('@prisma/client/runtime/library');
       prisma.user.create.mockRejectedValue(
         new PrismaClientKnownRequestError('Unique constraint', { code: 'P2002', clientVersion: '5.0.0' })
       );

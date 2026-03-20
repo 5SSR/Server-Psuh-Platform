@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { RiskAction, RiskScene } from '@prisma/client';
+
 import { RiskService } from '../risk.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RiskAction, RiskScene } from '@prisma/client';
 
 describe('RiskService', () => {
   let service: RiskService;

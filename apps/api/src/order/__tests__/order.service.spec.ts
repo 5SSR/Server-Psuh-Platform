@@ -1,18 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+
 import { OrderService } from '../order.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../../wallet/wallet.service';
-import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { NoticeService } from '../../notice/notice.service';
+import { RiskService } from '../../risk/risk.service';
 
 describe('OrderService', () => {
   let service: OrderService;
   let prisma: any;
   let wallet: any;
+  let noticeService: any;
+  let riskService: any;
 
   beforeEach(async () => {
     prisma = {
       product: { findUnique: jest.fn() },
       order: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      feeConfig: { findUnique: jest.fn().mockResolvedValue(null) },
       orderLog: { create: jest.fn(), findMany: jest.fn() },
       payment: { upsert: jest.fn() },
       settlement: { upsert: jest.fn(), findMany: jest.fn() },
@@ -31,12 +37,20 @@ describe('OrderService', () => {
       refundToBuyer: jest.fn(),
       refreshSellerProfileMetrics: jest.fn()
     };
+    noticeService = {
+      createSystemNotice: jest.fn()
+    };
+    riskService = {
+      evaluate: jest.fn().mockResolvedValue({ action: 'ALLOW', reason: 'ok' })
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrderService,
         { provide: PrismaService, useValue: prisma },
-        { provide: WalletService, useValue: wallet }
+        { provide: WalletService, useValue: wallet },
+        { provide: NoticeService, useValue: noticeService },
+        { provide: RiskService, useValue: riskService }
       ]
     }).compile();
 

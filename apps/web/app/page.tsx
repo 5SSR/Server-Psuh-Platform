@@ -1,19 +1,37 @@
 import Link from 'next/link';
 import { api } from '../lib/api';
 
+export const dynamic = 'force-dynamic';
+
 const CATEGORIES = [
   { label: 'VPS', value: 'VPS' },
   { label: '独立服务器', value: 'DEDICATED' },
+  { label: '云服务器', value: 'CLOUD' },
   { label: 'NAT 转发', value: 'NAT' },
-  { label: 'GPU 算力', value: 'GPU' }
+  { label: '线路机', value: 'LINE' }
 ];
 
 const REGIONS = ['中国香港', '日本东京', '新加坡', '美国西海岸', '德国', '英国'];
 const LINES = ['CN2', 'BGP', 'AS9929', '原生 IP', '优化线路'];
 
+const CONSIGNMENT_STATUS_LABEL: Record<'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED', string> = {
+  PENDING: '寄售待审核',
+  APPROVED: '寄售已通过',
+  REJECTED: '寄售已驳回',
+  CANCELED: '寄售已撤销'
+};
+
+function consignmentTone(status?: string) {
+  if (status === 'APPROVED') return 'success';
+  if (status === 'REJECTED') return 'danger';
+  if (status === 'CANCELED') return '';
+  return 'warning';
+}
+
 export default async function Home() {
   let content: Awaited<ReturnType<typeof api.homeContent>> | null = null;
   let latest: Awaited<ReturnType<typeof api.products>>['list'] = [];
+  let featured: Awaited<ReturnType<typeof api.products>>['list'] = [];
 
   try {
     content = await api.homeContent();
@@ -26,6 +44,13 @@ export default async function Home() {
     latest = latestRes.list || [];
   } catch {
     latest = [];
+  }
+
+  try {
+    const featuredRes = await api.products('page=1&pageSize=4&urgentOnly=true');
+    featured = featuredRes.list || [];
+  } catch {
+    featured = [];
   }
 
   const faqs = content?.faqs ?? [];
@@ -84,6 +109,57 @@ export default async function Home() {
       </section>
 
       <section className="stack-16">
+        {featured.length > 0 && (
+          <>
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">平台推荐</p>
+                <h2>重点推荐交易标的</h2>
+              </div>
+              <Link href="/products?urgentOnly=true" className="btn secondary">
+                查看推荐列表
+              </Link>
+            </div>
+            <div className="cards">
+              {featured.map((item) => (
+                <Link key={`featured-${item.id}`} href={`/products/${item.id}`} className="card link stack-12">
+                  <div className="card-header">
+                    <h3 style={{ fontSize: 16 }}>{item.title}</h3>
+                    <span className="price">¥{Number(item.salePrice).toFixed(2)}</span>
+                  </div>
+                  <div className="spec-grid">
+                    <div className="spec-item">
+                      <p className="label">类型</p>
+                      <p className="value">{item.category}</p>
+                    </div>
+                    <div className="spec-item">
+                      <p className="label">地区</p>
+                      <p className="value">{item.region || '-'}</p>
+                    </div>
+                    <div className="spec-item">
+                      <p className="label">线路</p>
+                      <p className="value">{item.lineType || '-'}</p>
+                    </div>
+                    <div className="spec-item">
+                      <p className="label">风险</p>
+                      <p className="value">{item.riskLevel || 'MEDIUM'}</p>
+                    </div>
+                  </div>
+                  <div className="status-line">
+                    <span className="status-chip info">平台推荐</span>
+                    <span className="status-chip success">担保交易</span>
+                    <span className="status-chip">
+                      卖家 Lv.{item.seller?.sellerProfile?.level ?? 1}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="stack-16">
         <div className="section-head">
           <div>
             <p className="eyebrow">在售市场</p>
@@ -98,41 +174,53 @@ export default async function Home() {
           <div className="empty-state">暂无在售商品，卖家可先进入发布页提交审核。</div>
         ) : (
           <div className="cards">
-            {latest.map((item) => (
-              <Link key={item.id} href={`/products/${item.id}`} className="card link stack-12">
-                <div className="card-header">
-                  <h3 style={{ fontSize: 16 }}>{item.title}</h3>
-                  <span className="price">¥{Number(item.salePrice).toFixed(2)}</span>
-                </div>
-                <div className="spec-grid">
-                  <div className="spec-item">
-                    <p className="label">类型</p>
-                    <p className="value">{item.category}</p>
+            {latest.map((item) => {
+              const latestConsignment = item.consignmentApplications?.[0];
+              return (
+                <Link key={item.id} href={`/products/${item.id}`} className="card link stack-12">
+                  <div className="card-header">
+                    <h3 style={{ fontSize: 16 }}>{item.title}</h3>
+                    <span className="price">¥{Number(item.salePrice).toFixed(2)}</span>
                   </div>
-                  <div className="spec-item">
-                    <p className="label">地区</p>
-                    <p className="value">{item.region || '-'}</p>
+                  <div className="spec-grid">
+                    <div className="spec-item">
+                      <p className="label">类型</p>
+                      <p className="value">{item.category}</p>
+                    </div>
+                    <div className="spec-item">
+                      <p className="label">地区</p>
+                      <p className="value">{item.region || '-'}</p>
+                    </div>
+                    <div className="spec-item">
+                      <p className="label">线路</p>
+                      <p className="value">{item.lineType || '-'}</p>
+                    </div>
+                    <div className="spec-item">
+                      <p className="label">到期</p>
+                      <p className="value">
+                        {item.expireAt ? new Date(item.expireAt).toLocaleDateString('zh-CN') : '长期/未知'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="spec-item">
-                    <p className="label">线路</p>
-                    <p className="value">{item.lineType || '-'}</p>
+                  <div className="status-line">
+                    <span className="status-chip info">平台担保</span>
+                    {item.consignment ? (
+                      <span className="status-chip success">平台寄售</span>
+                    ) : latestConsignment?.status ? (
+                      <span className={`status-chip ${consignmentTone(latestConsignment.status)}`}>
+                        {CONSIGNMENT_STATUS_LABEL[latestConsignment.status] || latestConsignment.status}
+                      </span>
+                    ) : (
+                      <span className="status-chip">未启用寄售</span>
+                    )}
+                    <span className="status-chip success">
+                      卖家 Lv.{item.seller?.sellerProfile?.level ?? 1}
+                    </span>
+                    {!!item.riskTags?.length && <span className="status-chip warning">含风险标签</span>}
                   </div>
-                  <div className="spec-item">
-                    <p className="label">到期</p>
-                    <p className="value">
-                      {item.expireAt ? new Date(item.expireAt).toLocaleDateString('zh-CN') : '长期/未知'}
-                    </p>
-                  </div>
-                </div>
-                <div className="status-line">
-                  <span className="status-chip info">平台担保</span>
-                  <span className="status-chip success">
-                    卖家 Lv.{item.seller?.sellerProfile?.level ?? 1}
-                  </span>
-                  {!!item.riskTags?.length && <span className="status-chip warning">含风险标签</span>}
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>

@@ -1,11 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+
 import { UserInteractionService } from '../user-interaction.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { NoticeService } from '../../notice/notice.service';
 
 describe('UserInteractionService', () => {
   let service: UserInteractionService;
   let prisma: any;
+  let noticeService: any;
 
   beforeEach(async () => {
     prisma = {
@@ -37,11 +40,15 @@ describe('UserInteractionService', () => {
         return Promise.all(cb);
       }),
     };
+    noticeService = {
+      createSystemNotice: jest.fn().mockResolvedValue({})
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserInteractionService,
         { provide: PrismaService, useValue: prisma },
+        { provide: NoticeService, useValue: noticeService }
       ],
     }).compile();
 

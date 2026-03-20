@@ -1,6 +1,7 @@
 import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
 import { UserStatus } from '@prisma/client';
+
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class QueryUserDto extends PaginationDto {
   @IsOptional()

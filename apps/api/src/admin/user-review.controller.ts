@@ -9,20 +9,27 @@ import {
   Query,
   UseGuards
 } from '@nestjs/common';
+import { SellerApplicationStatus } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { NoticeService } from '../notice/notice.service';
+
 import { AdminQueryDto } from './dto/admin-query.dto';
 import { ReviewKycDto } from './dto/review-kyc.dto';
-import { NoticeChannel, SellerApplicationStatus } from '@prisma/client';
 import { ReviewSellerApplicationDto } from './dto/review-seller-application.dto';
+
 
 @Controller('admin/users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class AdminUserReviewController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly noticeService: NoticeService
+  ) {}
 
   private presentRole(role: string) {
     return role === 'ADMIN' ? 'ADMIN' : 'USER';
@@ -83,15 +90,12 @@ export class AdminUserReviewController {
       }
     });
 
-    await this.prisma.notice.create({
-      data: {
-        userId,
-        type: dto.status === 'approved' ? 'KYC_APPROVED' : 'KYC_REJECTED',
-        channel: NoticeChannel.SITE,
-        payload: {
-          reason: dto.reason,
-          at: new Date().toISOString()
-        } as any
+    await this.noticeService.createSystemNotice({
+      userId,
+      type: dto.status === 'approved' ? 'KYC_APPROVED' : 'KYC_REJECTED',
+      payload: {
+        reason: dto.reason,
+        at: new Date().toISOString()
       }
     });
 
@@ -186,21 +190,18 @@ export class AdminUserReviewController {
           create: { userId }
         });
       }
+    });
 
-      await tx.notice.create({
-        data: {
-          userId,
-          type:
-            dto.status === SellerApplicationStatus.APPROVED
-              ? 'SELLER_APPLICATION_APPROVED'
-              : 'SELLER_APPLICATION_REJECTED',
-          channel: NoticeChannel.SITE,
-          payload: {
-            reason: dto.reason,
-            at: new Date().toISOString()
-          } as any
-        }
-      });
+    await this.noticeService.createSystemNotice({
+      userId,
+      type:
+        dto.status === SellerApplicationStatus.APPROVED
+          ? 'SELLER_APPLICATION_APPROVED'
+          : 'SELLER_APPLICATION_REJECTED',
+      payload: {
+        reason: dto.reason,
+        at: new Date().toISOString()
+      }
     });
 
     return { message: '交易资质申请审核完成' };

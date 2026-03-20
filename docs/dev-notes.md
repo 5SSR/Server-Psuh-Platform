@@ -2,6 +2,44 @@
 
 > 更新频率：每次开发后追加，便于下一次快速接力。
 
+## 2026-03-20
+- 开放接口签名鉴权与监控收口：修复 `open-api.service.ts` 构建阻塞（`TooManyRequestsException` 兼容性、Prisma `groupBy` `_all` 类型不匹配），改为 `HttpException(429)` + `id` 字段计数聚合；`@idc/api build` 恢复通过。
+- 卖家开放接口页修复：修正签名示例文案中的 JSX 未转义引号与模板字符串插值（`${TS}` 等）导致的 lint/build 失败，`@idc/web lint/build` 通过。
+- 运营管理能力补齐（文档缺口对齐）：新增后台商品运营接口 `GET /admin/products` 与 `PATCH /admin/products/:id/market`，支持按关键词/状态/推荐位筛选并维护风险等级、风险标签、推荐位与溢价系数。
+- 管理端商品页二段式工作台：`/admin/products` 在原“待审商品管理”之外新增“运营商品池 + 运营配置区”，统一成“筛选区 + 表格区 + 详情操作区”，减少后台样式重复并强化交易平台运营感。
+- 内容运营页补齐标签配置：`/admin/content` 新增市场标签（CATEGORY/REGION/LINE/PROMOTION）创建与列表展示，打通“分类与标签配置”后台入口。
+- 首页新增“平台推荐专区”：基于推荐位商品透出重点交易标的，形成“后台运营配置 -> 前台推荐展示”的完整链路。
+- 本地运行稳定性修复：定位并处理 `:4000` 端口被旧 `dist/main` 进程占用导致 `EADDRINUSE`，重启后 API/Web 本地服务均可访问（`/api/v1/health`、`/`、`/admin/products` 返回 200）。
+- 手续费策略配置化（交易平台财务能力增强）：新增 `FeeConfig` 配置模型与迁移 `20260320043000_add_fee_config_and_order_fee_payer`，并为 `Order` 增加 `feePayer` 快照字段，确保历史订单结算不受后续费率调整影响。
+- 订单计费逻辑升级：`OrderService` 支持“数据库配置优先 + 环境变量兜底 + 30 秒本地缓存”，兼容 `FIXED/RATE/TIER` 三种模式与 `BUYER/SELLER/SHARED` 三种承担方。
+- 管理端支付页补齐“手续费策略工作区”：新增 `GET/PATCH /admin/payments/fee-config` 接口与前端配置面板（模式、承担方、fixedFee/rate/minFee、阶梯文本配置、备注），更新后对新订单即时生效。
+- 支付接入层可观测性增强：新增 `GET /admin/payments/integrations`，返回各渠道运行模式（INTERNAL/MOCK/REMOTE/DISABLED）、验签密钥配置、对账链路配置、最近对账任务、24h 支付活跃度与告警列表。
+- 管理端支付页新增“支付接入状态”面板：统一展示 BALANCE/ALIPAY/WECHAT/USDT/MANUAL 渠道接入健康度，支持一键刷新，便于上线前排查“可支付但不可对账/不可验签”风险。
+- 支付流程收口：前端支付动作统一走 `POST /payments/:orderId/initiate`（替代直接 `PATCH /orders/:id/pay`），非余额渠道回归“生成支付意图 -> 回调推进状态”的真实流程；订单中心与独立支付页保持一致。
+- 登录/注册/支付流程国际化收口：新增 `apps/web/lib/use-locale.ts`，并将 `/auth/login`、`/auth/register`、`/pay/[orderId]`、`components/payment-workbench` 核心文案接入语言切换（中文/英文）。
+- 工程稳定性收口：修复 `wallet.service.spec.ts` 因 `orderReview.count` mock 缺失导致的单测失败，恢复 API 测试全量通过。
+- 前端告警清零：修复 `profile/history`、`profile/alerts`、`seller/store` 的 `useEffect` 依赖问题；商品详情图集从 `<img>` 切换为 `next/image`（`unoptimized`），`@idc/web lint` 无 warning。
+- 构建期 `fetch ECONNREFUSED` 兜底增强：将依赖实时后端数据的页面（`/`、`/help`、`/wanted`、`/products/[id]`、`/stores/[sellerId]`）切换为 `force-dynamic`，`@idc/web build` 不再出现构建期连接拒绝报错。
+- 风控系统二轮增强（P3 自动风控）：新增 `GET /admin/risk/overview` 与 `POST /admin/risk/watchlist/sync`，支持按窗口统计风险命中、动作分布、场景分布、黑名单/观察名单规模、高风险用户评分排行。
+- 自动观察名单能力：`RiskService.syncAutoWatchlist` 根据命中动作权重（`BLOCK=6/REVIEW=4/LIMIT=3/ALERT=2`）自动维护 `WATCHLIST`，并支持评分回落自动停用。
+- 定时任务扩展：`TaskService` 新增每小时自动同步观察名单任务；新增环境变量 `RISK_WATCHLIST_WINDOW_HOURS`、`RISK_WATCHLIST_SCORE_THRESHOLD`。
+- 管理端风控页升级：新增“风控概览 + 自动风控评分 + 手动同步观察名单”区域，统一纳入后台控制台工作流。
+- 开放接口能力落地（P3 接口开放）：新增 `OpenApiKey` 数据模型与迁移 `20260320024000_add_open_api_keys`，支持卖家创建/查询/撤销 API Key（`GET/POST/PATCH /open/keys*`）。
+- 开放商品接口：新增 `POST /open/products` 与 `POST /open/products/provider/sync`，支持通过 `x-api-key` 或 `Authorization: Bearer <apiKey>` 调用，直接复用现有商品发布与上游参数拉取逻辑。
+- 卖家端新增 `/seller/open-api` 页面：可视化管理密钥（一次性展示明文、状态、过期时间、最近使用时间）并提供 `curl` 调用示例；顶部导航新增“开放接口”入口。
+- 黑名单共享能力增强：新增 `POST /admin/risk/entities/batch-upsert` 与 `GET /admin/risk/entities/export`，支持名单批量导入/导出（按 `listType/entityType`），便于多环境或多平台风控名单同步。
+- 管理端风控页补齐“名单共享工作区”：支持多行批量导入与启用名单快速导出，减少单条维护成本。
+- 回归验证：`pnpm --filter @idc/api lint/test/build` 与 `pnpm --filter @idc/web lint/build` 全部通过。
+
+## 2026-03-19
+- 求购市场（Wanted）MVP 上线：新增 `WantedRequest` / `WantedOffer` 数据模型与迁移 `20260319103000_add_wanted_market`，支持买家发布求购、卖家提交报价、买家接受/拒绝报价、关闭求购、卖家侧报价记录查询。
+- 新增后端模块：`apps/api/src/wanted`（`WantedModule` / `WantedController` / `WantedService` + DTO），并接入 `NoticeService`，在“新报价/报价接受/报价拒绝”场景发送系统通知。
+- 新增前端页面：`/wanted`（求购大厅）、`/wanted/new`（发布求购）、`/wanted/mine`（买家处理报价 + 卖家报价记录）、`/wanted/[id]`（求购详情与快速报价），并在顶部导航增加“求购市场 / 我的求购”入口。
+- 通知多渠道能力全局收口：将认证、实名认证/交易资质审核、账号封禁恢复、价格提醒、提现申请与审核结果等系统通知从 `prisma.notice.create` 直写改为统一 `NoticeService.createSystemNotice` 分发，统一支持 `SITE/EMAIL/TG` 策略与失败状态回写。
+- 依赖注入补齐：`AuthModule`、`UserModule`、`WalletModule` 引入 `NoticeModule`；`AuthService`、`UserController`、`UserInteractionService`、`AdminUserReviewController`、`AdminUserManagementController`、`WalletService` 增加通知服务依赖，减少通知逻辑重复。
+- 事务边界优化：提现申请与提现审核（通过/驳回/打款）改为“资金事务提交后再发送通知”，避免外部通知链路与资金事务强耦合。
+- 测试同步修复：`auth.service.spec.ts`、`wallet.service.spec.ts`、`user-interaction.service.spec.ts` 增加 `NoticeService` mock，`pnpm --filter @idc/api test` 恢复 `7 suites / 49 tests` 全通过。
+
 ## 2026-03-18
 - 全量需求收尾（P0/P1 延伸项）完成：订单取消与管理员强制完成、用户资料更新与改密、MFA（TOTP）启用/停用/登录校验、收藏/浏览历史/价格提醒、通知模板管理、管理员操作审计日志、任务巡检增强（价格提醒）。
 - 数据层扩展并落库：`User` 新增 `nickname/avatar/mfaSecret`，新增 `AdminLog`、`NoticeTemplate`、`Favorite`、`BrowsingHistory`、`PriceAlert` 模型；补充迁移目录：
@@ -151,6 +189,44 @@
 - 21:47 联调验证：启动 API 后通过 `curl` 验证 `/admin/payments` 返回正确；`pnpm --filter @idc/api build`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/web build` 通过。
 - 21:51 支付风控补强（后端）：`PaymentWebhookService` 新增渠道一致性校验（URL channel 与 body channel 必须一致）与回调金额校验（按支付单金额/订单应付金额核对），防止错误回调推进支付状态。
 - 21:52 支付排查闭环（后端+前端）：新增 `PATCH /admin/payments/:orderId/review`，管理员可写入 `NORMAL/SUSPICIOUS/FRAUD` 标记与备注（存入 `notifyPayload.adminReview` 并写 `PAYMENT_REVIEW` 订单日志）；管理端支付监控页新增“排查标记+备注+保存”操作。
+- 22:18 求购市场（Wanted）MVP：新增 `WantedRequest/WantedOffer` 数据模型与迁移，后端新增 `wanted` 模块（求购大厅、发布、我的求购、卖家报价、买家接受/拒绝），前端新增 `/wanted`、`/wanted/new`、`/wanted/mine`、`/wanted/[id]` 全流程页面，并接入通知中心。
+- 22:56 议价中心（Bargain）MVP：新增 `Bargain/BargainLog` 数据模型与迁移 `20260319113000_add_bargain_mvp`，后端新增 `bargains` 模块（发起议价、会话列表、详情、还价/接受/拒绝/取消），并在 `OrderService` 增加 `createByNegotiation`，实现“议价达成自动建担保订单”。
+- 23:07 议价前端联动：新增 `apps/web/app/bargains/page.tsx` 议价中心（买家/卖家双视角、时间线、可执行动作面板），新增 `components/bargain-box.tsx` 并接入商品详情页；顶部导航与商品列表增加议价入口与状态标识。
+- 23:15 回归验证：`pnpm --filter @idc/api prisma:generate`、`pnpm --filter @idc/api lint`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/api build`、`pnpm --filter @idc/web lint`、`pnpm --filter @idc/web build` 全部通过（仍存在既有 `<img>` lint warning 2 条，不阻断构建）。
+- 23:34 议价后台（Admin）接入：新增 `GET /admin/bargains`、`GET /admin/bargains/:id`、`PATCH /admin/bargains/:id/review`，支持后台筛选会话、查看完整议价时间线、管理员备注、强制关闭会话；关闭时自动通知买卖双方。
+- 23:41 管理端 UI 新增 `/admin/bargains` 页面，统一采用控制台结构（页面头部 + 筛选区 + 表格区 + 详情操作区），并将“风险等级、风险原因、轮次、价格偏离、建单状态”集中可视化。
+- 23:45 运营看板增强：`/admin/dashboard/overview` 新增 `bargains` 聚合统计（按状态、已建单数、高轮次活跃会话），前端看板新增“议价活跃会话/议价转化态势”模块，强化交易流程可视化。
+- 23:48 回归验证：再次执行 `pnpm --filter @idc/api lint`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/api build`、`pnpm --filter @idc/web lint`、`pnpm --filter @idc/web build` 全部通过（保留既有 `<img>` warning 2 条）。
+- 23:56 议价处置动作扩展：`AdminBargainAction` 新增 `ESCALATE_DISPUTE`，后台可将“已建单议价会话”一键转入订单纠纷；`OrderService` 新增 `openDisputeByAdmin`，写入 `DISPUTE_OPEN_ADMIN` 订单日志并推进订单到 `DISPUTING`。
+- 00:02 议价风险自动提醒：`BargainService` 新增 `remindHighRiskBargains`（按轮次/时长/偏离率识别风险会话），`TaskService` 新增每小时任务扫描并通知买卖双方，避免会话长期挂起。
+- 00:06 配置补充：`.env.example` 增加 `BARGAIN_RISK_REMIND_HOURS` 与 `BARGAIN_RISK_REMIND_COOLDOWN_HOURS`，支持提醒阈值与冷却窗口调优。
+- 00:09 回归验证：本轮再次执行 `pnpm --filter @idc/api exec tsc -p tsconfig.json --noEmit`、`pnpm --filter @idc/api lint`、`pnpm --filter @idc/api test`、`pnpm --filter @idc/api build`、`pnpm --filter @idc/web lint`、`pnpm --filter @idc/web build` 全部通过（保留既有 `<img>` warning 2 条）。
+- 23:10 支付体验精修（前端）：新增独立支付页 `apps/web/app/pay/[orderId]/page.tsx`，补齐“支付执行区 + 托管保障说明 + 担保流程感”页面形态，支持从订单中心进入专用支付流程。
+- 23:14 公共组件抽离：新增 `apps/web/components/payment-workbench.tsx`，统一“下单建单、支付发起、状态刷新、模拟回调、回执展示”逻辑；`purchase-box` 改为复用该组件，减少支付相关重复代码。
+- 23:16 订单页联动：`/orders` 的待支付订单新增“进入支付页”动作，保留原有内联支付能力，兼容原有交互路径。
+- 23:22 本地运行稳定性修复：定位到 `next dev` 与 `next build` 并行导致 `.next` 产物互相覆盖，触发 `Cannot find module './791.js' / vendor-chunks`；重启 Web 开发服务并执行 `dev:reset` 后恢复稳定。
+- 23:24 回归验证：`pnpm --filter @idc/web lint`、`pnpm --filter @idc/web build` 通过；本地路由联通性 `GET /`、`GET /orders`、`GET /pay/demo-order-001` 均为 `200`，API `GET /api/v1/health` 为 `200`。
+- 23:40 寄售模式（P2）MVP 落地（后端）：新增 `ConsignmentApplication` 数据模型与迁移 `20260319234000_add_consignment_mvp`，并新增寄售模块接口：
+  - 卖家侧：`POST /consignments`、`GET /consignments/mine`、`PATCH /consignments/:id/cancel`
+  - 管理侧：`GET /admin/consignments`、`PATCH /admin/consignments/:id/review`
+  审核通过后自动将商品 `consignment=true`，并向卖家发送站内通知。
+- 23:47 寄售前端工作台上线：新增卖家页 `/seller/consignments`（寄售申请 + 状态跟踪 + 撤销）与管理页 `/admin/consignments`（筛选区 + 表格区 + 详情操作区）；导航新增“寄售申请”“寄售审核”入口。
+- 23:54 担保流程独立页上线：新增 `/escrow` 页面（流程阶段、状态字典、担保机制说明），顶部主导航“担保流程”从帮助中心调整为独立流程页入口。
+- 23:58 联调验证：完成 `prisma generate` 与 `prisma migrate deploy`；`pnpm --filter @idc/api lint/build`、`pnpm --filter @idc/web lint/build` 通过（保留既有 `<img>` warning 2 条）。通过脚本验证“卖家提交寄售申请 -> 管理员审核通过”链路可用。
+- 00:18 寄售信息前台透出（交易信任增强）：`ProductService.findMany/findOne/findMine` 新增 `consignmentApplications` 最新记录返回（状态、审核备注、审结时间、审核人）；前端商品列表与详情页新增“平台寄售/寄售审核状态/审核备注”可视化，详情页新增“寄售审核信息”区块。
+- 00:22 前台流程页完善：新增独立担保流程路由 `/escrow` 并接入顶部导航，避免“担保流程”与帮助文档混用，强化交易流程感与状态字典认知。
+- 00:24 回归验证：`pnpm --filter @idc/api lint/build`、`pnpm --filter @idc/web lint/build` 通过；`GET /products` 与 `GET /products/:id` 已返回寄售审核字段；页面路由 `/products`、`/products/:id`、`/escrow` 返回 `200`。
+- 00:39 后台商品审核联动寄售信息：`GET /admin/products/pending` 返回补齐 `seller.sellerProfile` 与最新 `consignmentApplications`（含审核人）；管理端 `admin/products` 列表与详情区新增“寄售状态/审核时间/审核备注/审核人/卖家信誉/风险等级”统一展示。
+- 00:41 首页交易信任增强：`/` 热门商品卡片新增“平台寄售/寄售审核状态”标签，和卖家信誉、风险标签并列展示，强化交易流程可视化；回归验证 `pnpm --filter @idc/api lint/build`、`pnpm --filter @idc/web lint/build` 通过（仍保留既有 `<img>` warning 2 条）。
+- 00:56 后台移动端精修（通用样式层）：`apps/web/app/globals.css` 新增控制台移动端优化规则，统一修复管理页列表与详情区在小屏下的溢出/拥挤问题（表格最小宽度下调并增强横向滚动、详情操作区 sticky 动作栏、`btn-sm` 触达面积提升、长文本换行、输入框 16px 防缩放）。
+- 00:58 回归验证：`pnpm --filter @idc/web lint`、`pnpm --filter @idc/web build` 通过；仅保留既有 `<img>` warning 2 条，未新增阻断项。
+- 01:18 后台移动端二次精修（卡片化表格）：为核心管理页表格单元格补齐 `data-label`（dashboard/products/orders/payments/refunds/disputes/withdrawals/users/notices/settlements），并将这些页面表格统一切到 `console-table-mobile`，移动端自动转为“字段标签 + 值”的卡片结构，显著降低横向滚动依赖。
+- 01:20 样式系统增强：`globals.css` 在 `@media (max-width: 640px)` 新增 `console-table-mobile` 规则（隐藏表头、行卡片化、操作列全宽按钮、字段标签统一展示），仅作用于显式标记的表格，不影响其余后台页面。
+- 01:22 回归验证：再次执行 `pnpm --filter @idc/web lint`、`pnpm --filter @idc/web build` 通过；路由探活 `GET /admin/dashboard|products|orders|payments|refunds|disputes|withdrawals|users|notices|settlements` 均为 `200`，仅保留既有 `<img>` warning 2 条。
+- 14:41 后台审计日志工作台重构：重写 `apps/web/app/admin/logs/page.tsx` 为统一控制台布局（页面头部 + 筛选区 + 表格区 + 详情操作区），补齐移动端 `console-table-mobile` 卡片化展示，并将 `操作审计` 加入 `console-nav` 导航。
+- 14:43 审计接口增强：`GET /admin/logs` 新增 `resource/keyword` 筛选，`AdminLogService` 对分页参数做边界保护并补齐管理员信息映射（email/role），前端可直接显示执行人而无需二次拼装。
+- 14:45 支付诊断报告闭环：新增 `GET /admin/payments/diagnostics`（渠道告警汇总、未支付积压、进行中对账、近 7 天可疑/风险支付快照）；`admin/payments` 页面新增“诊断摘要 + 高风险支付快照 + JSON 导出”能力，支持运营/财务离线排查留档。
+- 14:47 回归验证：`pnpm --filter @idc/api lint`、`pnpm --filter @idc/api build`、`pnpm --filter @idc/web lint`、`pnpm --filter @idc/web build` 全部通过；本轮前端构建未出现 `fetch ECONNREFUSED` 阻断。
 
 ### 使用提示
 1) 复制 `.env.example` 为 `.env`，填好 `DATABASE_URL` 与 `REDIS_URL` 等。

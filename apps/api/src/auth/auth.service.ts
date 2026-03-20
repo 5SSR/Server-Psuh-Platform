@@ -1,28 +1,36 @@
+import { createHash } from 'crypto';
+
 import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcryptjs';
 import {
   AuthCodeScene,
-  NoticeChannel,
+  RiskScene,
   UserRole,
   UserStatus
 } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+
+import { PrismaService } from '../prisma/prisma.service';
+import { NoticeService } from '../notice/notice.service';
+import { RiskService } from '../risk/risk.service';
+
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SecurityLogQueryDto } from './dto/security-log-query.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { createHash } from 'crypto';
-import { generateSecret, generateURI, verifySync } from 'otplib';
+
+
 
 interface LoginMeta {
   ip?: string;
@@ -31,10 +39,29 @@ interface LoginMeta {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly noticeService: NoticeService,
+    private readonly riskService: RiskService
   ) {}
+
+  private async sendSystemNotice(input: {
+    userId: string;
+    type: string;
+    payload?: Record<string, unknown>;
+    title?: string;
+    content?: string;
+  }) {
+    try {
+      await this.noticeService.createSystemNotice(input);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`发送通知失败 type=${input.type} userId=${input.userId}: ${reason}`);
+    }
+  }
 
   private signToken(payload: { sub: string; role: UserRole }) {
     return this.jwtService.sign(payload);
@@ -101,15 +128,12 @@ export class AuthService {
     });
 
     if (userId) {
-      await this.prisma.notice.create({
-        data: {
-          userId,
-          type: 'AUTH_CODE_ISSUED',
-          channel: NoticeChannel.SITE,
-          payload: {
-            scene,
-            expiresAt: expiresAt.toISOString()
-          } as any
+      await this.sendSystemNotice({
+        userId,
+        type: 'AUTH_CODE_ISSUED',
+        payload: {
+          scene,
+          expiresAt: expiresAt.toISOString()
         }
       });
     }
@@ -248,6 +272,23 @@ export class AuthService {
       throw new UnauthorizedException('账号或密码错误');
     }
 
+    const loginRisk = await this.riskService.evaluate(RiskScene.LOGIN, {
+      userId: user.id,
+      email: user.email,
+      ip
+    });
+    if (loginRisk.action === 'BLOCK') {
+      await this.appendLoginLog({
+        userId: user.id,
+        email: user.email,
+        ip,
+        userAgent,
+        success: false,
+        reason: 'RISK_BLOCKED'
+      });
+      throw new UnauthorizedException('登录请求触发风控拦截，请稍后再试');
+    }
+
     const now = new Date();
     const isAbnormalLogin = Boolean(user.lastLoginIp && ip && user.lastLoginIp !== ip);
 
@@ -270,22 +311,34 @@ export class AuthService {
         }
       });
 
-      if (isAbnormalLogin) {
-        await tx.notice.create({
-          data: {
-            userId: user.id,
-            type: 'LOGIN_ALERT',
-            channel: NoticeChannel.SITE,
-            payload: {
-              previousIp: user.lastLoginIp,
-              currentIp: ip,
-              userAgent,
-              at: now.toISOString()
-            } as any
-          }
-        });
-      }
     });
+
+    if (isAbnormalLogin) {
+      await this.sendSystemNotice({
+        userId: user.id,
+        type: 'LOGIN_ALERT',
+        payload: {
+          previousIp: user.lastLoginIp,
+          currentIp: ip,
+          userAgent,
+          at: now.toISOString()
+        }
+      });
+    }
+
+    if (loginRisk.action !== 'ALLOW') {
+      await this.sendSystemNotice({
+        userId: user.id,
+        type: 'LOGIN_RISK_NOTICE',
+        payload: {
+          action: loginRisk.action,
+          reason: loginRisk.reason,
+          at: now.toISOString()
+        },
+        title: '登录风控提醒',
+        content: `本次登录被标记为 ${loginRisk.action}，平台已记录并持续监测。`
+      });
+    }
 
     return {
       token: this.signToken({ sub: user.id, role: user.role }),
@@ -333,13 +386,10 @@ export class AuthService {
       where: { id: user.id },
       data: { passwordHash }
     });
-    await this.prisma.notice.create({
-      data: {
-        userId: user.id,
-        type: 'PASSWORD_RESET',
-        channel: NoticeChannel.SITE,
-        payload: { at: new Date().toISOString() } as any
-      }
+    await this.sendSystemNotice({
+      userId: user.id,
+      type: 'PASSWORD_RESET',
+      payload: { at: new Date().toISOString() }
     });
     return { message: '密码重置成功，请重新登录' };
   }
@@ -371,13 +421,10 @@ export class AuthService {
       where: { id: user.id },
       data: { emailVerifiedAt: new Date() }
     });
-    await this.prisma.notice.create({
-      data: {
-        userId: user.id,
-        type: 'EMAIL_VERIFIED',
-        channel: NoticeChannel.SITE,
-        payload: { at: new Date().toISOString() } as any
-      }
+    await this.sendSystemNotice({
+      userId: user.id,
+      type: 'EMAIL_VERIFIED',
+      payload: { at: new Date().toISOString() }
     });
     return { message: '邮箱验证成功' };
   }

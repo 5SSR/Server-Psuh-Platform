@@ -203,7 +203,7 @@ export default function AdminUsersPage() {
           <ConsoleEmpty text={loading ? '加载中...' : '暂无用户记录'} />
         ) : (
           <div className="console-table-wrap">
-            <table className="console-table">
+            <table className="console-table console-table-mobile">
               <thead>
                 <tr>
                   <th>账号 / ID</th>
@@ -218,31 +218,31 @@ export default function AdminUsersPage() {
               <tbody>
                 {filteredList.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="账号 / ID">
                       <div className="console-row-primary">{item.email}</div>
                       <p className="console-row-sub">{item.id}</p>
                     </td>
-                    <td>
+                    <td data-label="角色 / 状态">
                       <div className="console-inline-tags">
                         <StatusBadge tone={item.role === 'ADMIN' ? 'warning' : 'info'}>{roleLabel[item.role] || item.role}</StatusBadge>
                         <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="认证与资质">
                       <div className="console-row-primary">KYC：{item.kyc?.status || '未提交'}</div>
                       <p className="console-row-sub">交易资质：{item.sellerApplication?.status || '未申请'}</p>
                       <p className="console-row-sub">邮箱验证：{item.emailVerifiedAt ? '已验证' : '未验证'}</p>
                     </td>
-                    <td>
+                    <td data-label="钱包">
                       <div className="console-row-primary">余额：{formatMoney(item.wallet?.balance || 0)}</div>
                       <p className="console-row-sub">冻结：{formatMoney(item.wallet?.frozen || 0)}</p>
                     </td>
-                    <td>
+                    <td data-label="最近登录">
                       <div className="console-row-primary">{item.lastLoginAt ? formatDateTime(item.lastLoginAt) : '暂无'}</div>
                       <p className="console-row-sub">IP：{item.lastLoginIp || '-'}</p>
                     </td>
-                    <td>{formatDateTime(item.createdAt)}</td>
-                    <td>
+                    <td data-label="注册时间">{formatDateTime(item.createdAt)}</td>
+                    <td data-label="操作">
                       <button
                         type="button"
                         onClick={() => setSelectedId(item.id)}

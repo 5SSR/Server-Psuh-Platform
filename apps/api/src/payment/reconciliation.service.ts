@@ -6,9 +6,12 @@ import {
   ReconcileItemStatus,
   ReconcileTaskStatus
 } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
+
 import { AlipayGateway } from './gateways/alipay.gateway';
 import { WechatGateway } from './gateways/wechat.gateway';
+import { UsdtGateway } from './gateways/usdt.gateway';
 import { PaymentGateway } from './gateways/payment-gateway.interface';
 
 @Injectable()
@@ -18,9 +21,10 @@ export class ReconciliationService {
   constructor(
     private readonly prisma: PrismaService,
     alipayGateway: AlipayGateway,
-    wechatGateway: WechatGateway
+    wechatGateway: WechatGateway,
+    usdtGateway: UsdtGateway
   ) {
-    this.gateways = [alipayGateway, wechatGateway];
+    this.gateways = [alipayGateway, wechatGateway, usdtGateway];
   }
 
   async run(channel: PayChannel, bizDate?: string) {

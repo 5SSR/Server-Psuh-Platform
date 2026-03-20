@@ -1,10 +1,13 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import { OrderService } from '../order/order.service';
 import { createHmac } from 'crypto';
+
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { PayChannel, RiskScene } from '@prisma/client';
-import { PaymentWebhookDto } from './dto/webhook.dto';
+
+import { OrderService } from '../order/order.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RiskService } from '../risk/risk.service';
+
+import { PaymentWebhookDto } from './dto/webhook.dto';
 
 @Injectable()
 export class PaymentWebhookService {
@@ -61,6 +64,8 @@ export class PaymentWebhookService {
         return process.env.PAY_WEBHOOK_SECRET_ALIPAY || '';
       case 'wechat':
         return process.env.PAY_WEBHOOK_SECRET_WECHAT || '';
+      case 'usdt':
+        return process.env.PAY_WEBHOOK_SECRET_USDT || '';
       default:
         return process.env.PAY_WEBHOOK_SECRET_MANUAL || '';
     }
@@ -103,6 +108,7 @@ export class PaymentWebhookService {
         id: true,
         price: true,
         fee: true,
+        escrowAmount: true,
         payment: {
           select: { amount: true }
         }
@@ -112,7 +118,7 @@ export class PaymentWebhookService {
 
     const expected = order.payment
       ? Number(order.payment.amount)
-      : Number(order.price) + Number(order.fee);
+      : Number(order.escrowAmount ?? Number(order.price) + Number(order.fee));
     if (Math.abs(expected - amount) > 0.01) {
       throw new BadRequestException(`回调金额不匹配，期望 ${expected.toFixed(2)}`);
     }

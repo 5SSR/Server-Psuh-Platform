@@ -267,7 +267,7 @@ export default function AdminOrdersPage() {
           <ConsoleEmpty text={loading ? '加载中...' : '暂无匹配订单'} />
         ) : (
           <div className="console-table-wrap">
-            <table className="console-table">
+            <table className="console-table console-table-mobile">
               <thead>
                 <tr>
                   <th>订单 / 商品</th>
@@ -284,15 +284,15 @@ export default function AdminOrdersPage() {
                   const latestVerify = order.verifyRecords?.[0];
                   return (
                     <tr key={order.id}>
-                      <td>
+                      <td data-label="订单 / 商品">
                         <div className="console-row-primary">{order.id}</div>
                         <p className="console-row-sub">{order.product?.title || '未知商品'}</p>
                       </td>
-                      <td>
+                      <td data-label="买家 / 卖家">
                         <div className="console-row-primary">买家：{order.buyer?.email || '-'}</div>
                         <p className="console-row-sub">卖家：{order.seller?.email || '-'}</p>
                       </td>
-                      <td>
+                      <td data-label="流程状态">
                         <div className="console-inline-tags">
                           <StatusBadge tone={statusTone(order.status)}>{statusLabel[order.status] || order.status}</StatusBadge>
                           <StatusBadge tone={order.payStatus === 'PAID' ? 'success' : 'warning'}>
@@ -300,11 +300,11 @@ export default function AdminOrdersPage() {
                           </StatusBadge>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="金额">
                         <div className="console-row-primary">{formatMoney(order.price)}</div>
                         <p className="console-row-sub">托管资金</p>
                       </td>
-                      <td>
+                      <td data-label="最近核验">
                         {latestVerify ? (
                           <div className="console-inline-tags">
                             <StatusBadge tone={verifyTone(latestVerify.result)}>{latestVerify.result}</StatusBadge>
@@ -314,7 +314,7 @@ export default function AdminOrdersPage() {
                           <span className="muted">暂无</span>
                         )}
                       </td>
-                      <td>
+                      <td data-label="担保提示">
                         <div className="console-inline-tags">
                           <StatusBadge tone="info">平台担保</StatusBadge>
                           {(order.status === 'DISPUTING' || order.status === 'REFUNDING') && (
@@ -322,7 +322,7 @@ export default function AdminOrdersPage() {
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="操作">
                         <button
                           type="button"
                           onClick={() => setSelectedId(order.id)}

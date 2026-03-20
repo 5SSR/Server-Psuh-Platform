@@ -35,14 +35,35 @@ type Entity = {
   expiresAt?: string | null;
 };
 
+type RiskOverview = {
+  windowDays: number;
+  totalHits: number;
+  blacklistCount: number;
+  watchlistCount: number;
+  actionDistribution: Array<{ action: string; count: number }>;
+  sceneDistribution: Array<{ scene: string; count: number }>;
+  topRiskUsers: Array<{
+    userId: string;
+    score: number;
+    hitCount: number;
+    blockCount: number;
+    reviewCount: number;
+  }>;
+};
+
 export default function AdminRiskPage() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
   const [rules, setRules] = useState<Rule[]>([]);
   const [hits, setHits] = useState<Hit[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
+  const [overview, setOverview] = useState<RiskOverview | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [syncingWatchlist, setSyncingWatchlist] = useState(false);
+  const [overviewDays, setOverviewDays] = useState('7');
+  const [watchlistWindowHours, setWatchlistWindowHours] = useState('24');
+  const [watchlistThreshold, setWatchlistThreshold] = useState('12');
 
   const [ruleForm, setRuleForm] = useState({
     code: '',
@@ -60,30 +81,36 @@ export default function AdminRiskPage() {
     entityValue: '',
     reason: ''
   });
+  const [batchValues, setBatchValues] = useState('');
+  const [batchReason, setBatchReason] = useState('');
+  const [exportText, setExportText] = useState('');
 
   const load = useCallback(async () => {
     if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
-    const [rulesRes, hitsRes, entitiesRes] = await Promise.all([
+    const [rulesRes, hitsRes, entitiesRes, overviewRes] = await Promise.all([
       fetch(`${API_BASE}/admin/risk/rules?page=1&pageSize=30`, { headers }),
       fetch(`${API_BASE}/admin/risk/hits?page=1&pageSize=30`, { headers }),
-      fetch(`${API_BASE}/admin/risk/entities?page=1&pageSize=30`, { headers })
+      fetch(`${API_BASE}/admin/risk/entities?page=1&pageSize=30`, { headers }),
+      fetch(`${API_BASE}/admin/risk/overview?days=${Number(overviewDays) || 7}`, { headers })
     ]);
 
-    const [rulesData, hitsData, entitiesData] = await Promise.all([
+    const [rulesData, hitsData, entitiesData, overviewData] = await Promise.all([
       rulesRes.json(),
       hitsRes.json(),
-      entitiesRes.json()
+      entitiesRes.json(),
+      overviewRes.json()
     ]);
 
-    if (!rulesRes.ok || !hitsRes.ok || !entitiesRes.ok) {
+    if (!rulesRes.ok || !hitsRes.ok || !entitiesRes.ok || !overviewRes.ok) {
       throw new Error('读取风控数据失败');
     }
 
     setRules(rulesData.list || []);
     setHits(hitsData.list || []);
     setEntities(entitiesData.list || []);
-  }, [token]);
+    setOverview(overviewData || null);
+  }, [token, overviewDays]);
 
   useEffect(() => {
     load().catch((e) => setError(e.message || '加载失败'));
@@ -160,6 +187,92 @@ export default function AdminRiskPage() {
     await load();
   };
 
+  const batchImportEntities = async () => {
+    if (!token) return;
+    const lines = batchValues
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (lines.length === 0) {
+      setError('请先填写要导入的名单值（每行一个）');
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/admin/risk/entities/batch-upsert`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        listType: entityForm.listType,
+        entityType: entityForm.entityType,
+        entityValues: lines,
+        reason: batchReason || undefined
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.message || '批量导入失败');
+      return;
+    }
+    setMessage(`批量导入成功，共 ${data.count || lines.length} 条`);
+    setBatchValues('');
+    await load();
+  };
+
+  const exportEntities = async () => {
+    if (!token) return;
+    const params = new URLSearchParams({
+      listType: entityForm.listType,
+      entityType: entityForm.entityType,
+      enabledOnly: 'true'
+    });
+    const res = await fetch(`${API_BASE}/admin/risk/entities/export?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.message || '导出失败');
+      return;
+    }
+    const lines = (data.list || []).map((item: { entityValue: string }) => item.entityValue);
+    setExportText(lines.join('\n'));
+    setMessage(`导出完成，共 ${data.count || lines.length} 条`);
+  };
+
+  const syncWatchlist = async () => {
+    if (!token) return;
+    setSyncingWatchlist(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/admin/risk/watchlist/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          windowHours: Number(watchlistWindowHours) || 24,
+          thresholdScore: Number(watchlistThreshold) || 12
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '同步失败');
+      setMessage(
+        `自动观察名单已同步：新增/刷新 ${data.activated ?? 0} 条，停用 ${data.disabled ?? 0} 条`
+      );
+      await load();
+    } catch (e: any) {
+      setError(e.message || '同步失败');
+    } finally {
+      setSyncingWatchlist(false);
+    }
+  };
+
   return (
     <main className="page">
       <header className="section-head">
@@ -171,6 +284,111 @@ export default function AdminRiskPage() {
 
       {message && <p className="success">{message}</p>}
       {error && <p className="error">{error}</p>}
+
+      <section className="card">
+        <h3>风控概览</h3>
+        <div className="actions" style={{ marginBottom: 12 }}>
+          <label className="muted">
+            统计窗口（天）
+            <input
+              type="number"
+              min="1"
+              max="90"
+              value={overviewDays}
+              onChange={(e) => setOverviewDays(e.target.value)}
+              style={{ marginLeft: 8, width: 88 }}
+            />
+          </label>
+          <button className="btn secondary" onClick={() => void load()}>
+            刷新概览
+          </button>
+        </div>
+        {overview ? (
+          <div className="cards">
+            <article className="card nested">
+              <p className="muted">风险命中总数（{overview.windowDays} 天）</p>
+              <h2 style={{ marginTop: 8 }}>{overview.totalHits}</h2>
+            </article>
+            <article className="card nested">
+              <p className="muted">黑名单（启用）</p>
+              <h2 style={{ marginTop: 8 }}>{overview.blacklistCount}</h2>
+            </article>
+            <article className="card nested">
+              <p className="muted">自动观察名单（启用）</p>
+              <h2 style={{ marginTop: 8 }}>{overview.watchlistCount}</h2>
+            </article>
+            <article className="card nested stack-8">
+              <p className="muted">动作分布</p>
+              {(overview.actionDistribution || []).map((item) => (
+                <p key={item.action} className="muted">
+                  {item.action}: {item.count}
+                </p>
+              ))}
+            </article>
+            <article className="card nested stack-8">
+              <p className="muted">场景分布</p>
+              {(overview.sceneDistribution || []).map((item) => (
+                <p key={item.scene} className="muted">
+                  {item.scene}: {item.count}
+                </p>
+              ))}
+            </article>
+          </div>
+        ) : (
+          <p className="muted">暂无概览数据</p>
+        )}
+      </section>
+
+      <section className="card" style={{ marginTop: '1rem' }}>
+        <h3>自动风控评分与观察名单</h3>
+        <div className="detail-grid">
+          <label>
+            窗口（小时）
+            <input
+              type="number"
+              min="1"
+              max="336"
+              value={watchlistWindowHours}
+              onChange={(e) => setWatchlistWindowHours(e.target.value)}
+            />
+          </label>
+          <label>
+            触发阈值（分）
+            <input
+              type="number"
+              min="4"
+              max="200"
+              value={watchlistThreshold}
+              onChange={(e) => setWatchlistThreshold(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="actions">
+          <button className="btn primary" onClick={syncWatchlist} disabled={syncingWatchlist}>
+            {syncingWatchlist ? '同步中...' : '立即同步观察名单'}
+          </button>
+        </div>
+        <p className="muted">
+          评分规则：BLOCK=6，REVIEW=4，LIMIT=3，ALERT=2。超过阈值将自动加入 WATCHLIST。
+        </p>
+        {overview?.topRiskUsers?.length ? (
+          <div className="cards">
+            {overview.topRiskUsers.map((item) => (
+              <article key={item.userId} className="card nested">
+                <p>
+                  <strong>{item.userId}</strong>
+                </p>
+                <p className="muted">
+                  评分 {item.score} · 命中 {item.hitCount} · BLOCK {item.blockCount} · REVIEW{' '}
+                  {item.reviewCount}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">暂无高风险用户</p>
+        )}
+      </section>
 
       <section className="card">
         <h3>新增规则</h3>
@@ -232,6 +450,36 @@ export default function AdminRiskPage() {
         </div>
         <div className="actions">
           <button onClick={addEntity}>保存名单</button>
+        </div>
+        <div className="card nested stack-8">
+          <h4 style={{ fontSize: 15, margin: 0 }}>批量导入 / 导出（名单共享）</h4>
+          <textarea
+            rows={6}
+            placeholder="每行一个值，例如用户ID、IP或邮箱"
+            value={batchValues}
+            onChange={(e) => setBatchValues(e.target.value)}
+          />
+          <input
+            placeholder="批量导入原因（可选）"
+            value={batchReason}
+            onChange={(e) => setBatchReason(e.target.value)}
+          />
+          <div className="actions">
+            <button className="btn primary" onClick={batchImportEntities}>
+              批量导入
+            </button>
+            <button className="btn secondary" onClick={exportEntities}>
+              导出启用名单
+            </button>
+          </div>
+          {exportText ? (
+            <textarea
+              rows={6}
+              value={exportText}
+              onChange={(e) => setExportText(e.target.value)}
+              placeholder="导出结果（可复制共享）"
+            />
+          ) : null}
         </div>
         <div className="cards" style={{ marginTop: '1rem' }}>
           {entities.map((entity) => (

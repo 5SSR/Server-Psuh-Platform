@@ -1,14 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { WalletService } from '../wallet.service';
-import { PrismaService } from '../../prisma/prisma.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+
+import { WalletService } from '../wallet.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { RiskService } from '../../risk/risk.service';
+import { NoticeService } from '../../notice/notice.service';
 
 describe('WalletService', () => {
   let service: WalletService;
   let prisma: any;
   let riskService: any;
+  let noticeService: any;
 
   beforeEach(async () => {
     prisma = {
@@ -34,11 +37,13 @@ describe('WalletService', () => {
         findMany: jest.fn(),
         aggregate: jest.fn(),
       },
+      orderReview: {
+        count: jest.fn(),
+      },
       order: { findMany: jest.fn() },
       dispute: { count: jest.fn() },
       sellerProfile: { upsert: jest.fn() },
       user: { findUnique: jest.fn() },
-      notice: { create: jest.fn() },
       $transaction: jest.fn((cb) => {
         if (typeof cb === 'function') return cb(prisma);
         return Promise.all(cb);
@@ -47,12 +52,16 @@ describe('WalletService', () => {
     riskService = {
       evaluate: jest.fn().mockResolvedValue({ action: 'ALLOW', reason: 'ok' })
     };
+    noticeService = {
+      createSystemNotice: jest.fn().mockResolvedValue({})
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WalletService,
         { provide: PrismaService, useValue: prisma },
-        { provide: RiskService, useValue: riskService }
+        { provide: RiskService, useValue: riskService },
+        { provide: NoticeService, useValue: noticeService }
       ],
     }).compile();
 
@@ -106,7 +115,6 @@ describe('WalletService', () => {
       prisma.withdrawal.create.mockResolvedValue({ id: 'wd1', amount: new Prisma.Decimal(200), fee: new Prisma.Decimal(1.2) });
       prisma.wallet.update.mockResolvedValue({});
       prisma.walletLedger.create.mockResolvedValue({});
-      prisma.notice.create.mockResolvedValue({});
 
       const result = await service.applyWithdrawal('u1', { amount: 200, channel: 'ALIPAY', accountInfo: '123' });
       expect(result).toHaveProperty('message');
@@ -119,6 +127,9 @@ describe('WalletService', () => {
       prisma.settlement.count.mockResolvedValue(10);
       prisma.dispute.count.mockResolvedValue(1);
       prisma.order.findMany.mockResolvedValue([]);
+      prisma.orderReview.count
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(1);
       prisma.sellerProfile.upsert.mockResolvedValue({ userId: 's1', level: 2 });
 
       const result = await service.refreshSellerProfileMetrics('s1');

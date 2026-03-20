@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
+
+import { RiskModule } from '../risk/risk.module';
+import { NoticeModule } from '../notice/notice.module';
+
 import { WalletService } from './wallet.service';
 import { WalletController } from './wallet.controller';
-import { RiskModule } from '../risk/risk.module';
 
 @Module({
-  imports: [RiskModule],
+  imports: [RiskModule, NoticeModule],
   controllers: [WalletController],
   providers: [WalletService],
   exports: [WalletService]

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD , APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+
 import { AppController } from './app.controller';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { PrismaModule } from './prisma/prisma.module';
@@ -12,12 +14,15 @@ import { WalletModule } from './wallet/wallet.module';
 import { TaskModule } from './task/task.module';
 import { PaymentModule } from './payment/payment.module';
 import { AdminModule } from './admin/admin.module';
-import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { NoticeModule } from './notice/notice.module';
 import { ContentModule } from './content/content.module';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { RiskModule } from './risk/risk.module';
+import { WantedModule } from './wanted/wanted.module';
+import { BargainModule } from './bargain/bargain.module';
+import { ConsignmentModule } from './consignment/consignment.module';
+import { StoreModule } from './store/store.module';
+import { OpenApiModule } from './open-api/open-api.module';
 
 @Module({
   imports: [
@@ -37,6 +42,11 @@ import { RiskModule } from './risk/risk.module';
     RiskModule,
     NoticeModule,
     ContentModule,
+    WantedModule,
+    BargainModule,
+    ConsignmentModule,
+    StoreModule,
+    OpenApiModule,
     AdminModule
   ],
   controllers: [AppController],

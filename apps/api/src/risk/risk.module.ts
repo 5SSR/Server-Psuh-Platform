@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { RiskService } from './risk.service';
+
 import { PrismaModule } from '../prisma/prisma.module';
+
+import { RiskService } from './risk.service';
 
 @Module({
   imports: [PrismaModule],

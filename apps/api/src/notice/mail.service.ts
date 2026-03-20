@@ -25,7 +25,7 @@ export class MailService {
   async send(to: string, subject: string, html: string) {
     if (!this.transporter) {
       this.logger.warn(`[Mail] SMTP not configured, skip sending to ${to}`);
-      return;
+      return { ok: false, reason: 'SMTP 未配置' } as const;
     }
     try {
       await this.transporter.sendMail({
@@ -35,8 +35,13 @@ export class MailService {
         html
       });
       this.logger.log(`[Mail] Sent "${subject}" to ${to}`);
+      return { ok: true } as const;
     } catch (err) {
       this.logger.error(`[Mail] Failed to send to ${to}`, err);
+      return {
+        ok: false,
+        reason: err instanceof Error ? err.message : '邮件发送失败'
+      } as const;
     }
   }
 }

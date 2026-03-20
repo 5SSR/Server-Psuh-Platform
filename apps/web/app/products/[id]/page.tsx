@@ -1,18 +1,38 @@
 import Link from 'next/link';
 import { api } from '../../../lib/api';
 import { PurchaseBox } from '../../../components/purchase-box';
+import { BargainBox } from '../../../components/bargain-box';
 import { FavoriteButton, ImageGallery } from '../../../components/product-detail-extras';
+import { RecordProductView } from '../../../components/record-product-view';
+
+export const dynamic = 'force-dynamic';
 
 function yesNo(v?: boolean | null) {
   if (v === undefined || v === null) return '未说明';
   return v ? '支持' : '不支持';
 }
 
+const CONSIGNMENT_STATUS_LABEL: Record<string, string> = {
+  PENDING: '寄售审核中',
+  APPROVED: '寄售已通过',
+  REJECTED: '寄售已驳回',
+  CANCELED: '寄售已撤销'
+};
+
+function consignmentTone(status?: string) {
+  if (status === 'APPROVED') return 'success';
+  if (status === 'REJECTED') return 'danger';
+  if (status === 'PENDING') return 'warning';
+  return '';
+}
+
 export default async function ProductDetail({ params }: { params: { id: string } }) {
   const detail = await api.productDetail(params.id);
+  const latestConsignment = detail.consignmentApplications?.[0];
 
   return (
     <main className="page page-shell">
+      <RecordProductView productId={detail.id} />
       <Link href="/products" className="back-link">
         ← 返回交易列表
       </Link>
@@ -27,6 +47,13 @@ export default async function ProductDetail({ params }: { params: { id: string }
             <span className="status-chip info">平台担保交易</span>
             <span className="status-chip">线路：{detail.lineType || '未标注'}</span>
             <span className="status-chip">交付方式：{detail.deliveryType || '未标注'}</span>
+            <span className="status-chip">服务费：{detail.feePayer || 'SELLER'}</span>
+            {detail.consignment ? <span className="status-chip success">平台寄售</span> : null}
+            {latestConsignment?.status ? (
+              <span className={`status-chip ${consignmentTone(latestConsignment.status)}`}>
+                {CONSIGNMENT_STATUS_LABEL[latestConsignment.status] || latestConsignment.status}
+              </span>
+            ) : null}
             <span className="status-chip success">卖家 Lv.{detail.seller?.sellerProfile?.level ?? 1}</span>
             {!!detail.riskTags?.length && <span className="status-chip warning">存在风险提示</span>}
           </div>
@@ -108,8 +135,22 @@ export default async function ProductDetail({ params }: { params: { id: string }
                 <p className="value">{yesNo(detail.negotiable)}</p>
               </div>
               <div className="spec-item">
+                <p className="label">支持测试</p>
+                <p className="value">{yesNo(detail.canTest)}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">支持过户</p>
+                <p className="value">{yesNo(detail.canTransfer)}</p>
+              </div>
+              <div className="spec-item">
                 <p className="label">寄售模式</p>
-                <p className="value">{yesNo(detail.consignment)}</p>
+                <p className="value">
+                  {detail.consignment
+                    ? '已启用（平台代管交付）'
+                    : latestConsignment?.status
+                      ? `${CONSIGNMENT_STATUS_LABEL[latestConsignment.status] || latestConsignment.status}`
+                      : '未启用'}
+                </p>
               </div>
               <div className="spec-item">
                 <p className="label">续费价格</p>
@@ -118,6 +159,10 @@ export default async function ProductDetail({ params }: { params: { id: string }
               <div className="spec-item">
                 <p className="label">服务商</p>
                 <p className="value">{detail.providerName || '未填写'}</p>
+              </div>
+              <div className="spec-item">
+                <p className="label">服务费承担方</p>
+                <p className="value">{detail.feePayer || 'SELLER'}</p>
               </div>
             </div>
           </section>
@@ -164,6 +209,50 @@ export default async function ProductDetail({ params }: { params: { id: string }
               </div>
             </div>
           </section>
+
+          {(detail.consignment || latestConsignment) && (
+            <section className="card stack-12">
+              <h3>寄售审核信息</h3>
+              <div className="spec-grid">
+                <div className="spec-item">
+                  <p className="label">审核状态</p>
+                  <p className="value">
+                    {latestConsignment?.status
+                      ? CONSIGNMENT_STATUS_LABEL[latestConsignment.status] || latestConsignment.status
+                      : detail.consignment
+                        ? '寄售已启用'
+                        : '未申请'}
+                  </p>
+                </div>
+                <div className="spec-item">
+                  <p className="label">申请时间</p>
+                  <p className="value">
+                    {latestConsignment?.createdAt
+                      ? new Date(latestConsignment.createdAt).toLocaleString('zh-CN')
+                      : '未记录'}
+                  </p>
+                </div>
+                <div className="spec-item">
+                  <p className="label">审核时间</p>
+                  <p className="value">
+                    {latestConsignment?.reviewedAt
+                      ? new Date(latestConsignment.reviewedAt).toLocaleString('zh-CN')
+                      : '待审核/未记录'}
+                  </p>
+                </div>
+                <div className="spec-item">
+                  <p className="label">审核人</p>
+                  <p className="value">{latestConsignment?.reviewer?.email || '未记录'}</p>
+                </div>
+              </div>
+              {latestConsignment?.adminRemark ? (
+                <p className="muted">审核备注：{latestConsignment.adminRemark}</p>
+              ) : null}
+              {latestConsignment?.sellerNote ? (
+                <p className="muted">卖家申请说明：{latestConsignment.sellerNote}</p>
+              ) : null}
+            </section>
+          )}
         </div>
 
         <aside style={{ gridColumn: 'span 4' }} className="stack-16">
@@ -171,6 +260,19 @@ export default async function ProductDetail({ params }: { params: { id: string }
             <h3>下单与担保</h3>
             <p className="muted">下单后进入平台担保流程，交付核验完成后才会放款，保障资金安全。</p>
             <PurchaseBox productId={detail.id} price={Number(detail.salePrice)} />
+            <Link href={`/profile/alerts?productId=${detail.id}`} className="btn ghost">
+              设置降价提醒
+            </Link>
+          </section>
+
+          <section className="card stack-12">
+            <h3>议价协商</h3>
+            <p className="muted">支持多轮还价，议价达成后自动生成担保订单，保持交易链路可追溯。</p>
+            <BargainBox
+              productId={detail.id}
+              listPrice={Number(detail.salePrice)}
+              negotiable={detail.negotiable}
+            />
           </section>
 
           <section className="card stack-12">
@@ -201,6 +303,11 @@ export default async function ProductDetail({ params }: { params: { id: string }
                 <p className="value">{((detail.seller?.sellerProfile?.positiveRate ?? 0) * 100).toFixed(2)}%</p>
               </div>
             </div>
+            {detail.seller?.id ? (
+              <Link href={`/stores/${detail.seller.id}`} className="btn secondary">
+                进入店铺主页
+              </Link>
+            ) : null}
           </section>
 
           <section className="card stack-12">

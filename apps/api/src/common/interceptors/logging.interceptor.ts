@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import {
   CallHandler,
   ExecutionContext,
@@ -5,7 +7,6 @@ import {
   NestInterceptor
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
-import { randomUUID } from 'crypto';
 
 // 简单请求日志拦截器，输出方法、路径与耗时
 @Injectable()

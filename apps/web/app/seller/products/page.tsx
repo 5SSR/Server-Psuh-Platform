@@ -14,6 +14,7 @@ type Product = {
   datacenter?: string | null;
   lineType?: string | null;
   providerName?: string | null;
+  providerUrl?: string | null;
   cpuModel?: string | null;
   cpuCores?: number | null;
   memoryGb?: number | null;
@@ -27,10 +28,15 @@ type Product = {
   renewPrice?: number | string | null;
   expireAt?: string | null;
   deliveryType: string;
+  feePayer?: 'BUYER' | 'SELLER' | 'SHARED' | string;
   negotiable?: boolean;
   consignment?: boolean;
+  isPremium?: boolean;
+  premiumRate?: number | string | null;
   canChangeEmail?: boolean;
   canChangeRealname?: boolean;
+  canTest?: boolean;
+  canTransfer?: boolean;
   riskTags?: string[];
   description?: string | null;
   createdAt: string;
@@ -68,10 +74,13 @@ type ProductForm = {
   renewPrice: string;
   expireAt: string;
   deliveryType: string;
+  feePayer: string;
   negotiable: boolean;
   consignment: boolean;
   canChangeEmail: boolean;
   canChangeRealname: boolean;
+  canTest: boolean;
+  canTransfer: boolean;
   isPremium: boolean;
   premiumRate: string;
   riskTags: string;
@@ -116,10 +125,13 @@ const defaultForm: ProductForm = {
   renewPrice: '',
   expireAt: '',
   deliveryType: 'FULL_ACCOUNT',
+  feePayer: 'SELLER',
   negotiable: false,
   consignment: false,
   canChangeEmail: false,
   canChangeRealname: false,
+  canTest: false,
+  canTransfer: false,
   isPremium: false,
   premiumRate: '',
   riskTags: '',
@@ -172,10 +184,13 @@ function toPayload(form: ProductForm) {
     renewPrice: toNumber(form.renewPrice),
     expireAt: form.expireAt || undefined,
     deliveryType: form.deliveryType,
+    feePayer: form.feePayer || 'SELLER',
     negotiable: form.negotiable,
     consignment: form.consignment,
     canChangeEmail: form.canChangeEmail,
     canChangeRealname: form.canChangeRealname,
+    canTest: form.canTest,
+    canTransfer: form.canTransfer,
     isPremium: form.isPremium,
     premiumRate: toNumber(form.premiumRate),
     riskTags: parseRiskTags(form.riskTags),
@@ -205,12 +220,15 @@ function fromProduct(product: Product): ProductForm {
     renewPrice: product.renewPrice ? String(product.renewPrice) : '',
     expireAt: product.expireAt ? product.expireAt.slice(0, 10) : '',
     deliveryType: product.deliveryType || 'FULL_ACCOUNT',
+    feePayer: product.feePayer || 'SELLER',
     negotiable: !!product.negotiable,
     consignment: !!product.consignment,
     canChangeEmail: !!product.canChangeEmail,
     canChangeRealname: !!product.canChangeRealname,
-    isPremium: false,
-    premiumRate: '',
+    canTest: !!product.canTest,
+    canTransfer: !!product.canTransfer,
+    isPremium: !!product.isPremium,
+    premiumRate: product.premiumRate ? String(product.premiumRate) : '',
     riskTags: (product.riskTags || []).join(', '),
     description: product.description || '',
     billImages: '',
@@ -251,6 +269,12 @@ export default function SellerProductsPage() {
   const [form, setForm] = useState<ProductForm>(defaultForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ProductForm>(defaultForm);
+  const [syncForm, setSyncForm] = useState({
+    panelType: 'generic',
+    endpoint: '',
+    apiKey: '',
+    serverId: ''
+  });
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('idc_token') : null;
 
@@ -312,6 +336,59 @@ export default function SellerProductsPage() {
 
   const updateEditFormValue = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) => {
     setEditForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const syncProviderConfig = async () => {
+    if (!token) return;
+    if (!syncForm.endpoint.trim()) {
+      setError('请先填写上游接口地址');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/products/provider/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(syncForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '拉取失败');
+      const detected = data.detected || {};
+      setForm((prev) => ({
+        ...prev,
+        providerName: detected.providerName || prev.providerName,
+        providerUrl: detected.providerUrl || prev.providerUrl,
+        cpuModel: detected.cpuModel || prev.cpuModel,
+        cpuCores: detected.cpuCores !== undefined ? String(detected.cpuCores) : prev.cpuCores,
+        memoryGb: detected.memoryGb !== undefined ? String(detected.memoryGb) : prev.memoryGb,
+        diskGb: detected.diskGb !== undefined ? String(detected.diskGb) : prev.diskGb,
+        diskType: detected.diskType || prev.diskType,
+        bandwidthMbps:
+          detected.bandwidthMbps !== undefined
+            ? String(detected.bandwidthMbps)
+            : prev.bandwidthMbps,
+        trafficLimit:
+          detected.trafficLimit !== undefined
+            ? String(detected.trafficLimit)
+            : prev.trafficLimit,
+        ipCount: detected.ipCount !== undefined ? String(detected.ipCount) : prev.ipCount,
+        ddos: detected.ddos !== undefined ? String(detected.ddos) : prev.ddos,
+        expireAt:
+          typeof detected.expireAt === 'string' && detected.expireAt.length >= 10
+            ? detected.expireAt.slice(0, 10)
+            : prev.expireAt
+      }));
+      setMessage(data.message || '已自动回填参数，请检查后保存商品');
+    } catch (e: any) {
+      setError(e.message || '拉取失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const createProduct = async () => {
@@ -392,6 +469,54 @@ export default function SellerProductsPage() {
       await load();
     } catch (e: any) {
       setError(e.message || '操作失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleUrgent = async (id: string, urgent: boolean) => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/products/${id}/urgent`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ urgent })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '急售状态更新失败');
+      setMessage(urgent ? '已设为急售商品' : '已取消急售');
+      await load();
+    } catch (e: any) {
+      setError(e.message || '急售状态更新失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    if (!token) return;
+    if (!window.confirm('确认删除该商品？删除后不可恢复。')) return;
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/products/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '删除失败');
+      setMessage('商品已删除');
+      if (editingId === id) setEditingId(null);
+      await load();
+    } catch (e: any) {
+      setError(e.message || '删除失败');
     } finally {
       setLoading(false);
     }
@@ -498,10 +623,9 @@ export default function SellerProductsPage() {
               <select value={form.category} onChange={(e) => updateFormValue('category', e.target.value)}>
                 <option value="DEDICATED">DEDICATED</option>
                 <option value="VPS">VPS</option>
-                <option value="GPU">GPU</option>
-                <option value="STORAGE">STORAGE</option>
+                <option value="CLOUD">CLOUD</option>
                 <option value="NAT">NAT</option>
-                <option value="OTHER">OTHER</option>
+                <option value="LINE">LINE</option>
               </select>
             </div>
             <div className="field third">
@@ -520,6 +644,50 @@ export default function SellerProductsPage() {
               <label>服务商名称</label>
               <input value={form.providerName} onChange={(e) => updateFormValue('providerName', e.target.value)} />
             </div>
+          </div>
+        </div>
+
+        <div className="card nested stack-12">
+          <h3 style={{ fontSize: 16 }}>上游面板 API 自动拉取</h3>
+          <p className="input-help">
+            填写上游接口后可自动回填 CPU/内存/硬盘/带宽等字段，减少手工录入误差。
+          </p>
+          <div className="form-row">
+            <div className="field third">
+              <label>面板类型</label>
+              <input
+                value={syncForm.panelType}
+                onChange={(e) => setSyncForm((prev) => ({ ...prev, panelType: e.target.value }))}
+                placeholder="generic/proxmox/solusvm..."
+              />
+            </div>
+            <div className="field full">
+              <label>上游接口地址</label>
+              <input
+                value={syncForm.endpoint}
+                onChange={(e) => setSyncForm((prev) => ({ ...prev, endpoint: e.target.value }))}
+                placeholder="https://provider.example.com/api/server/info"
+              />
+            </div>
+            <div className="field half">
+              <label>API Key（可选）</label>
+              <input
+                value={syncForm.apiKey}
+                onChange={(e) => setSyncForm((prev) => ({ ...prev, apiKey: e.target.value }))}
+              />
+            </div>
+            <div className="field half">
+              <label>服务器 ID（可选）</label>
+              <input
+                value={syncForm.serverId}
+                onChange={(e) => setSyncForm((prev) => ({ ...prev, serverId: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="actions">
+            <button className="btn secondary" type="button" onClick={syncProviderConfig} disabled={loading}>
+              拉取并回填配置
+            </button>
           </div>
         </div>
 
@@ -603,13 +771,37 @@ export default function SellerProductsPage() {
                 <option value="EMAIL_CHANGE">EMAIL_CHANGE</option>
               </select>
             </div>
+            <div className="field third">
+              <label>服务费承担方</label>
+              <select value={form.feePayer} onChange={(e) => updateFormValue('feePayer', e.target.value)}>
+                <option value="SELLER">SELLER（卖家）</option>
+                <option value="BUYER">BUYER（买家）</option>
+                <option value="SHARED">SHARED（分摊）</option>
+              </select>
+            </div>
           </div>
           <div className="status-line">
             <label><input type="checkbox" checked={form.negotiable} onChange={(e) => updateFormValue('negotiable', e.target.checked)} /> 支持议价</label>
             <label><input type="checkbox" checked={form.consignment} onChange={(e) => updateFormValue('consignment', e.target.checked)} /> 寄售模式</label>
+            <label><input type="checkbox" checked={form.isPremium} onChange={(e) => updateFormValue('isPremium', e.target.checked)} /> 设为急售</label>
             <label><input type="checkbox" checked={form.canChangeEmail} onChange={(e) => updateFormValue('canChangeEmail', e.target.checked)} /> 可改邮箱</label>
             <label><input type="checkbox" checked={form.canChangeRealname} onChange={(e) => updateFormValue('canChangeRealname', e.target.checked)} /> 可改实名</label>
+            <label><input type="checkbox" checked={form.canTest} onChange={(e) => updateFormValue('canTest', e.target.checked)} /> 支持测试</label>
+            <label><input type="checkbox" checked={form.canTransfer} onChange={(e) => updateFormValue('canTransfer', e.target.checked)} /> 支持过户</label>
           </div>
+          {form.isPremium ? (
+            <div className="field third">
+              <label>急售溢价比例（0-1，可选）</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={form.premiumRate}
+                onChange={(e) => updateFormValue('premiumRate', e.target.value)}
+              />
+            </div>
+          ) : null}
         </div>
 
         <div className="card nested stack-12">
@@ -691,6 +883,7 @@ export default function SellerProductsPage() {
                     <p className="muted">
                       编号：{item.code || item.id} · {item.category} · {item.region}
                     </p>
+                    {item.isPremium ? <span className="status-chip danger">急售</span> : null}
                   </div>
                   <span className={statusClass[item.status] || 'status-chip'}>
                     {statusLabel[item.status] || item.status}
@@ -707,6 +900,10 @@ export default function SellerProductsPage() {
                     <p className="value">{item.deliveryType}</p>
                   </div>
                   <div className="spec-item">
+                    <p className="label">服务费承担</p>
+                    <p className="value">{item.feePayer || 'SELLER'}</p>
+                  </div>
+                  <div className="spec-item">
                     <p className="label">线路</p>
                     <p className="value">{item.lineType || '-'}</p>
                   </div>
@@ -714,6 +911,11 @@ export default function SellerProductsPage() {
                     <p className="label">更新时间</p>
                     <p className="value">{new Date(item.updatedAt).toLocaleDateString('zh-CN')}</p>
                   </div>
+                </div>
+
+                <div className="status-line">
+                  {item.canTest ? <span className="status-chip info">支持测试</span> : null}
+                  {item.canTransfer ? <span className="status-chip info">支持过户</span> : null}
                 </div>
 
                 {!!item.riskTags?.length && (
@@ -760,6 +962,23 @@ export default function SellerProductsPage() {
                       上架
                     </button>
                   )}
+                  <button
+                    onClick={() => toggleUrgent(item.id, !item.isPremium)}
+                    disabled={loading}
+                    className="btn secondary"
+                    type="button"
+                  >
+                    {item.isPremium ? '取消急售' : '设为急售'}
+                  </button>
+                  <button
+                    onClick={() => deleteProduct(item.id)}
+                    disabled={loading || item.status === 'ONLINE'}
+                    className="btn secondary"
+                    type="button"
+                    title={item.status === 'ONLINE' ? '请先下架再删除' : '删除商品'}
+                  >
+                    删除
+                  </button>
                 </div>
 
                 {editingId === item.id && (
@@ -775,10 +994,9 @@ export default function SellerProductsPage() {
                         <select value={editForm.category} onChange={(e) => updateEditFormValue('category', e.target.value)}>
                           <option value="DEDICATED">DEDICATED</option>
                           <option value="VPS">VPS</option>
-                          <option value="GPU">GPU</option>
-                          <option value="STORAGE">STORAGE</option>
+                          <option value="CLOUD">CLOUD</option>
                           <option value="NAT">NAT</option>
-                          <option value="OTHER">OTHER</option>
+                          <option value="LINE">LINE</option>
                         </select>
                       </div>
                       <div className="field third">
@@ -808,6 +1026,23 @@ export default function SellerProductsPage() {
                           <option value="SUB_ACCOUNT">SUB_ACCOUNT</option>
                           <option value="EMAIL_CHANGE">EMAIL_CHANGE</option>
                         </select>
+                      </div>
+                      <div className="field half">
+                        <label>服务费承担方</label>
+                        <select
+                          value={editForm.feePayer}
+                          onChange={(e) => updateEditFormValue('feePayer', e.target.value)}
+                        >
+                          <option value="SELLER">SELLER（卖家）</option>
+                          <option value="BUYER">BUYER（买家）</option>
+                          <option value="SHARED">SHARED（分摊）</option>
+                        </select>
+                      </div>
+                      <div className="field full">
+                        <div className="status-line">
+                          <label><input type="checkbox" checked={editForm.canTest} onChange={(e) => updateEditFormValue('canTest', e.target.checked)} /> 支持测试</label>
+                          <label><input type="checkbox" checked={editForm.canTransfer} onChange={(e) => updateEditFormValue('canTransfer', e.target.checked)} /> 支持过户</label>
+                        </div>
                       </div>
                       <div className="field full">
                         <label>风险标签</label>

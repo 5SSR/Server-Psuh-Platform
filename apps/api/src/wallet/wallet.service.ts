@@ -2,22 +2,45 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException
 } from '@nestjs/common';
+import { Prisma, RiskScene, WalletLedgerType } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
-import { NoticeChannel, Prisma, RiskScene, WalletLedgerType } from '@prisma/client';
+import { RiskService } from '../risk/risk.service';
+import { NoticeService } from '../notice/notice.service';
+
 import { ApplyWithdrawDto } from './dto/apply-withdraw.dto';
 import { QueryWithdrawDto } from './dto/query-withdraw.dto';
 import { ReviewWithdrawDto } from './dto/review-withdraw.dto';
 import { QuerySettlementDto } from './dto/query-settlement.dto';
-import { RiskService } from '../risk/risk.service';
+
 
 @Injectable()
 export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly riskService: RiskService
+    private readonly riskService: RiskService,
+    private readonly noticeService: NoticeService
   ) {}
+
+  private async sendSystemNotice(input: {
+    userId: string;
+    type: string;
+    payload?: Record<string, unknown>;
+    title?: string;
+    content?: string;
+  }) {
+    try {
+      await this.noticeService.createSystemNotice(input);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`发送通知失败 type=${input.type} userId=${input.userId}: ${reason}`);
+    }
+  }
 
   private presentRole(role: string) {
     return role === 'ADMIN' ? 'ADMIN' : 'USER';
@@ -111,7 +134,7 @@ export class WalletService {
       throw new ForbiddenException('提现申请触发风控拦截');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { id: true, role: true, status: true }
@@ -160,21 +183,6 @@ export class WalletService {
         }
       });
 
-      await tx.notice.create({
-        data: {
-          userId,
-          type: 'WITHDRAW_APPLY',
-          channel: NoticeChannel.SITE,
-          payload: {
-            withdrawalId: withdrawal.id,
-            amount: amount.toFixed(2),
-            fee: fee.toFixed(2),
-            netAmount: netAmount.toFixed(2),
-            at: new Date().toISOString()
-          } as any
-        }
-      });
-
       return {
         message: '提现申请已提交，等待管理员审核',
         withdrawal: {
@@ -183,6 +191,20 @@ export class WalletService {
         }
       };
     });
+
+    await this.sendSystemNotice({
+      userId,
+      type: 'WITHDRAW_APPLY',
+      payload: {
+        withdrawalId: result.withdrawal.id,
+        amount: amount.toFixed(2),
+        fee: fee.toFixed(2),
+        netAmount: netAmount.toFixed(2),
+        at: new Date().toISOString()
+      }
+    });
+
+    return result;
   }
 
   async listWithdrawals(userId: string, query: QueryWithdrawDto) {
@@ -355,7 +377,13 @@ export class WalletService {
   ) {
     const executor = txClient ?? this.prisma;
 
-    const [releasedTradeCount, disputeCount, deliveredOrders] = await Promise.all([
+    const [
+      releasedTradeCount,
+      disputeCount,
+      deliveredOrders,
+      reviewTotalCount,
+      reviewPositiveCount
+    ] = await Promise.all([
       executor.settlement.count({
         where: {
           sellerId,
@@ -383,6 +411,15 @@ export class WalletService {
             select: { createdAt: true }
           }
         }
+      }),
+      executor.orderReview.count({
+        where: { sellerId }
+      }),
+      executor.orderReview.count({
+        where: {
+          sellerId,
+          rating: { gte: 4 }
+        }
       })
     ]);
 
@@ -408,7 +445,10 @@ export class WalletService {
       releasedTradeCount === 0
         ? 0
         : this.clampRatio(disputeCount / releasedTradeCount);
-    const positiveRate = this.clampRatio(1 - disputeRate);
+    const positiveRate =
+      reviewTotalCount > 0
+        ? this.clampRatio(reviewPositiveCount / reviewTotalCount)
+        : this.clampRatio(1 - disputeRate);
     const level = this.calcLevelByTradeCount(releasedTradeCount);
 
     const profile = await executor.sellerProfile.upsert({
@@ -434,7 +474,7 @@ export class WalletService {
   }
 
   async reviewWithdrawal(withdrawalId: string, adminId: string, dto: ReviewWithdrawDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const withdrawal = await tx.withdrawal.findUnique({
         where: { id: withdrawalId },
         include: {
@@ -457,21 +497,20 @@ export class WalletService {
           data: { status: 'approved' }
         });
 
-        await tx.notice.create({
-          data: {
+        return {
+          message: '提现审核已通过，等待打款',
+          withdrawal: updated,
+          notice: {
             userId: withdrawal.wallet.userId,
             type: 'WITHDRAW_APPROVED',
-            channel: NoticeChannel.SITE,
             payload: {
               withdrawalId: withdrawal.id,
               adminId,
               remark,
               at: new Date().toISOString()
-            } as any
+            }
           }
-        });
-
-        return { message: '提现审核已通过，等待打款', withdrawal: updated };
+        };
       }
 
       if (dto.action === 'REJECTED') {
@@ -509,21 +548,20 @@ export class WalletService {
           }
         });
 
-        await tx.notice.create({
-          data: {
+        return {
+          message: '提现已驳回，资金已退回可用余额',
+          withdrawal: updated,
+          notice: {
             userId: withdrawal.wallet.userId,
             type: 'WITHDRAW_REJECTED',
-            channel: NoticeChannel.SITE,
             payload: {
               withdrawalId: withdrawal.id,
               adminId,
               remark,
               at: new Date().toISOString()
-            } as any
+            }
           }
-        });
-
-        return { message: '提现已驳回，资金已退回可用余额', withdrawal: updated };
+        };
       }
 
       if (withdrawal.status !== 'approved') {
@@ -573,23 +611,28 @@ export class WalletService {
         });
       }
 
-      await tx.notice.create({
-        data: {
+      return {
+        message: '提现打款完成',
+        withdrawal: updated,
+        notice: {
           userId: withdrawal.wallet.userId,
           type: 'WITHDRAW_PAID',
-          channel: NoticeChannel.SITE,
           payload: {
             withdrawalId: withdrawal.id,
             amount: withdrawal.amount.toFixed(2),
             fee: withdrawal.fee.toFixed(2),
             netAmount: netAmount.toFixed(2),
             at: new Date().toISOString()
-          } as any
+          }
         }
-      });
-
-      return { message: '提现打款完成', withdrawal: updated };
+      };
     });
+
+    await this.sendSystemNotice(result.notice);
+    return {
+      message: result.message,
+      withdrawal: result.withdrawal
+    };
   }
 
   // 开发期充值接口（仅测试）
@@ -665,11 +708,27 @@ export class WalletService {
       }
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new Error('订单不存在');
-      const buyerWallet = await tx.wallet.upsert({
-        where: { userId: order.buyerId },
-        update: {},
-        create: { userId: order.buyerId, balance: new Prisma.Decimal(0), frozen: new Prisma.Decimal(0) }
-      });
+      const escrowAmount = order.escrowAmount ?? order.price;
+      const isBalanceEscrow = order.payChannel === 'BALANCE';
+
+      let buyerWallet:
+        | {
+            id: string;
+            userId: string;
+            balance: Prisma.Decimal;
+            frozen: Prisma.Decimal;
+          }
+        | null = null;
+      if (isBalanceEscrow) {
+        buyerWallet = await tx.wallet.upsert({
+          where: { userId: order.buyerId },
+          update: {},
+          create: { userId: order.buyerId, balance: new Prisma.Decimal(0), frozen: new Prisma.Decimal(0) }
+        });
+        if (buyerWallet.frozen.lt(escrowAmount)) {
+          throw new BadRequestException('买家托管余额不足，无法放款');
+        }
+      }
 
       const wallet = await tx.wallet.upsert({
         where: { userId: settlement.sellerId },
@@ -677,23 +736,25 @@ export class WalletService {
         create: { userId: settlement.sellerId, balance: new Prisma.Decimal(0), frozen: new Prisma.Decimal(0) }
       });
 
-      // 解冻买家托管
-      await tx.wallet.update({
-        where: { id: buyerWallet.id },
-        data: {
-          frozen: { decrement: settlement.amount }
-        }
-      });
-      await tx.walletLedger.create({
-        data: {
-          walletId: buyerWallet.id,
-          type: WalletLedgerType.ESCROW_RELEASE,
-          amount: settlement.amount.neg(),
-          refType: 'order',
-          refId: orderId,
-          memo: '托管解冻'
-        }
-      });
+      if (buyerWallet) {
+        // 余额支付订单：解冻全额托管（含服务费承担部分）
+        await tx.wallet.update({
+          where: { id: buyerWallet.id },
+          data: {
+            frozen: { decrement: escrowAmount }
+          }
+        });
+        await tx.walletLedger.create({
+          data: {
+            walletId: buyerWallet.id,
+            type: WalletLedgerType.ESCROW_RELEASE,
+            amount: escrowAmount.neg(),
+            refType: 'order',
+            refId: orderId,
+            memo: '托管解冻'
+          }
+        });
+      }
 
       // 放款给卖家
       await tx.wallet.update({
@@ -743,6 +804,8 @@ export class WalletService {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new Error('订单不存在');
+      const refundAmount = order.escrowAmount ?? order.price;
+      const isBalanceEscrow = order.payChannel === 'BALANCE';
 
       const buyerWallet = await tx.wallet.upsert({
         where: { userId: order.buyerId },
@@ -750,22 +813,35 @@ export class WalletService {
         create: { userId: order.buyerId, balance: new Prisma.Decimal(0), frozen: new Prisma.Decimal(0) }
       });
 
-      await tx.wallet.update({
-        where: { id: buyerWallet.id },
-        data: {
-          frozen: { decrement: order.price },
-          balance: { increment: order.price }
+      if (isBalanceEscrow) {
+        if (buyerWallet.frozen.lt(refundAmount)) {
+          throw new BadRequestException('买家托管余额不足，无法退款');
         }
-      });
+        await tx.wallet.update({
+          where: { id: buyerWallet.id },
+          data: {
+            frozen: { decrement: refundAmount },
+            balance: { increment: refundAmount }
+          }
+        });
+      } else {
+        // 非余额支付：开发期先退回站内余额，后续可扩展原路退回通道
+        await tx.wallet.update({
+          where: { id: buyerWallet.id },
+          data: {
+            balance: { increment: refundAmount }
+          }
+        });
+      }
 
       await tx.walletLedger.create({
         data: {
           walletId: buyerWallet.id,
           type: WalletLedgerType.REFUND,
-          amount: order.price,
+          amount: refundAmount,
           refType: 'order',
           refId: orderId,
-          memo: '退款入账'
+          memo: isBalanceEscrow ? '退款入账（托管退回）' : '退款入账（非余额支付退回余额）'
         }
       });
     });

@@ -198,7 +198,7 @@ export default function AdminWithdrawalsPage() {
           <ConsoleEmpty text={loading ? '加载中...' : '暂无提现记录'} />
         ) : (
           <div className="console-table-wrap">
-            <table className="console-table">
+            <table className="console-table console-table-mobile">
               <thead>
                 <tr>
                   <th>提现单号</th>
@@ -213,28 +213,28 @@ export default function AdminWithdrawalsPage() {
               <tbody>
                 {filteredItems.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="提现单号">
                       <div className="console-row-primary">{item.id}</div>
                       <p className="console-row-sub">{formatDateTime(item.createdAt)}</p>
                     </td>
-                    <td>
+                    <td data-label="用户">
                       <div className="console-row-primary">{item.wallet?.user?.email || '-'}</div>
                       <p className="console-row-sub">{roleLabel[item.wallet?.user?.role] || item.wallet?.user?.role}</p>
                     </td>
-                    <td>
+                    <td data-label="金额 / 手续费">
                       <div className="console-row-primary">{formatMoney(item.amount)}</div>
                       <p className="console-row-sub">手续费：{formatMoney(item.fee)}</p>
                     </td>
-                    <td>
+                    <td data-label="净打款">
                       <div className="console-row-primary">{formatMoney(Number(item.amount) - Number(item.fee))}</div>
                     </td>
-                    <td>
+                    <td data-label="渠道">
                       <div className="console-row-primary">{item.channel}</div>
                     </td>
-                    <td>
+                    <td data-label="状态">
                       <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status] || item.status}</StatusBadge>
                     </td>
-                    <td>
+                    <td data-label="操作">
                       <button
                         type="button"
                         onClick={() => setSelectedId(item.id)}
