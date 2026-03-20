@@ -1,192 +1,223 @@
-# IDC 二手服务器交易平台（Server-Psuh-Platform）
+# IDC 二手服务器担保交易平台（Server-Psuh-Platform）
 
-一个由 **ChatGPT 辅助规划与推动开发** 的 IDC 二手服务器担保交易平台，聚焦 VPS、独立服务器、NAT、云服务器、线路机等二手场景，围绕发布、审核、下单、支付托管、交付验机、纠纷处理与结算放款，打造可运营的交易闭环。
+一个面向 **VPS / 独服 / NAT / 云服务器二手交易** 的担保平台项目，核心目标是跑通真实可运营的交易闭环：  
+`发布 -> 审核 -> 下单 -> 支付托管 -> 交付 -> 核验 -> 确认 -> 结算/售后`
 
-- 一期目标：跑通“担保交易闭环”，优先安全性与可控性。
-- 技术栈（当前实现）：NestJS + Next.js + MySQL(Prisma) + Redis + pnpm + turbo。
-- 设计文档：`docs/architecture.md`（ERD、状态机、接口草案）。
-- 数据层：Prisma schema 位置 `apps/api/prisma/schema.prisma`，API Swagger 访问 `/api/docs`。
+当前技术栈：`NestJS + Next.js + Prisma(MySQL) + Redis + pnpm + turbo`
 
-## 快速开始（开发）
-1. 安装 pnpm：`npm i -g pnpm@9`
-2. 安装依赖：`pnpm install`
-3. 复制 `.env.example` 为 `.env`，填入数据库、Redis、支付/邮件等配置。
-4. 首次建库：`pnpm --filter @idc/api prisma:generate`，然后 `pnpm --filter @idc/api prisma:migrate -- --name init`
-5. 可选：导入示例数据 `pnpm --filter @idc/api prisma:seed`（需先配置 `DATABASE_URL`）
-6. 启动所有应用：`pnpm dev`（turbo 并行 web + api）
-7. Swagger 调试：`http://localhost:4000/api/docs`，鉴权使用 Bearer Token（`/auth/login` 获取）
+## 当前版本特性（可用于发帖）
 
-## 快速开始（Docker）
-1. 确保本机已安装 Docker / Docker Compose
-2. 在仓库根目录执行：`docker compose up -d --build`
-3. 首次初始化数据库（如需要）：进入 API 容器执行 Prisma migrate/seed
-4. 访问：
-	- Web：`http://localhost:3000`
-	- API：`http://localhost:4000/api/v1`
-	- Swagger：`http://localhost:4000/api/docs`
+### 1) 前台交易端
+- 首页、交易市场、担保流程、帮助中心、公告中心
+- 商品列表与详情（配置参数、线路、地区、价格、状态标签）
+- 求购市场（发布求购、卖家报价、买家处理）
+- 议价中心（发起议价、还价、接受/拒绝、会话流转）
+- 店铺页与卖家信息展示
 
-## 仓库结构
-- apps/api：后端 API（NestJS）
-- apps/web：前端站点（Next.js App Router）
-- packages/shared：共享类型与 DTO
-- docs：架构与规范文档
-- pnpm-workspace.yaml / turbo.json：工作区与任务编排
+### 2) 用户与安全
+- 注册、登录、找回密码、邮箱验证
+- 安全中心（修改密码、MFA）
+- 个人中心（收藏、浏览历史、价格提醒）
+- 认证与交易资质流程（KYC/资质提审与状态查询）
 
-## 环境变量（关键）
-- `DATABASE_URL` / `REDIS_URL`
-- JWT：`JWT_SECRET`、`JWT_EXPIRES`
-- 认证验证码：`AUTH_CODE_SECRET`、`AUTH_CODE_TTL_MINUTES`
-- 订单超时：`ORDER_AUTO_CONFIRM_HOURS`、`ORDER_UNPAID_CANCEL_MINUTES`
-- 提现参数：`WITHDRAW_MIN_AMOUNT`、`WITHDRAW_FEE_RATE`、`WITHDRAW_MIN_FEE`
-- 支付回调验签：`PAY_WEBHOOK_SECRET_ALIPAY`、`PAY_WEBHOOK_SECRET_WECHAT`、`PAY_WEBHOOK_SECRET_MANUAL`
-- 邮件与 Telegram（可选）：`SMTP_*`、`TELEGRAM_BOT_TOKEN`
+### 3) 交易与担保闭环
+- 下单、支付发起、支付状态查询
+- 卖家交付、平台核验、买家确认
+- 订单时间线与状态流转
+- 退款申请、纠纷申请、证据补充
+- 结算放款与手续费策略（固定/比例/阶梯）
 
----
+### 4) 钱包与资金
+- 钱包总览（可用/冻结）
+- 流水、充值、提现申请
+- 卖家结算记录
 
-## 1. 项目定位
-`Server-Psuh-Platform` 面向 IDC 二手服务器交易的担保型平台，目标解决：
-- 配置与到期信息不透明
-- 账号找回、虚假机器、黑历史风险
-- 直接转账缺乏保障、售后困难
+### 5) 卖家中心
+- 卖家看板（经营指标）
+- 商品管理（发布/编辑/上下架/提交审核/图片）
+- 卖家订单处理
+- 寄售申请与状态跟踪
+- Open API Key 管理与调用示例
 
-平台采用 **中介担保交易模式**：
-1) 卖家提交机器信息并上架  
-2) 买家付款到平台托管  
-3) 卖家交付账号或控制权  
-4) 买家验机确认  
-5) 平台结算放款给卖家
+### 6) 管理后台（控制台风格）
+- `admin/dashboard` 运营总览
+- `admin/products` 商品审核 + 运营池管理
+- `admin/orders` 订单核验与处置
+- `admin/payments` 支付监控/诊断/费率配置
+- `admin/refunds` 退款审核
+- `admin/disputes` 纠纷仲裁
+- `admin/withdrawals` 提现审核
+- `admin/users` 用户与资质管理
+- `admin/notices` 通知与模板
+- `admin/settlements` 结算放款
+- `admin/risk` 风控规则、命中、名单同步
+- `admin/reconcile` 对账任务与差异处理
+- `admin/logs` 审计日志
 
 ---
 
-## 2. 核心业务模式
-- 担保交易：支付托管 → 交付 → 验机 → 放款
-- 寄售模式：账号先托管平台，审核后直接上架，平台统一交付
-- 求购模式（规划）：买家发布需求，卖家匹配资源
+## 本地开发（推荐）
 
----
+### 1. 环境要求
+- Node.js `20.x`
+- pnpm `9.x`
+- MySQL `8.x`
+- Redis `7.x`
 
-## 3. 平台角色
-- 游客：浏览、搜索、查看公告与规则
-- 用户：统一账号，可发布商品、下单支付、交付履约、验机确认、售后/纠纷、提现与资金管理
-- 管理员/中介：审核商品、处理订单、核验、冻结/放款、纠纷仲裁、风控
-
-> 说明：平台仅区分「用户 / 管理员」账号类型；订单中的“买方/卖方”仅表示交易双方身份，不代表账号角色。
-
----
-
-## 4. 核心功能规划
-### 用户端
-- 账号系统：邮箱注册/登录、找回、邮箱验证、可选二步验证、实名认证
-- 首页：平台介绍、最新/热门、交易流程、担保说明、公告、FAQ
-- 商品列表：多维筛选（类型、地区/线路、供应商、CPU/内存/硬盘/带宽/流量/IP/防御、价格、溢价/议价、到期、交付方式、改绑能力等）、排序（最新/价格/到期/热度）
-- 商品详情：基础信息、配置、交易信息、交付信息、风险信息、截图凭证、补充说明
-- 买家功能：下单支付、订单列表、验机确认、退款/申诉、评价
-
-### 卖家端
-- 发布/管理商品：待审/上架/下架/交易中/已售/已取消
-- 订单处理：交付记录、状态跟进
-- 资金管理：余额/冻结/可提现、提现申请与记录
-
-### 中介担保系统
-- 订单流转：待支付 → 已支付待交付 → 核验中 → 买家验机中 → 已完成 → 放款；支路：退款中、纠纷中、已关闭
-- 平台核验：账号密码、配置一致性、到期/续费、欠费/风控/限制、封禁或黑历史
-- 放款逻辑：确认后放款、超时自动确认、纠纷冻结、扣除服务费后结算
-
-### 风控系统
-- 用户风控：新用户限额、异地登录提醒、大额订单人工审核、提现审核、黑名单
-- 商品风控：低价/高溢价/到期临近提醒、高风险交付方式、重复发布、历史投诉
-- 纠纷处理：买家申诉、卖家证据、平台仲裁，支持部分/全额退款或驳回
-
-### 财务系统
-- 支付：余额、支付宝/微信（规划）、USDT（可选）、人工收款（可选）
-- 结算：固定/比例/阶梯费率，手续费承担方配置
-- 提现：申请、审核、手续费、最低提现额、记录
-
-### 后台管理
-- 用户管理：认证、封禁/解封、黑名单
-- 商品管理：审核、上下架、编辑、推荐、风险标记、举报处理
-- 订单管理：担保订单、退款、纠纷、放款记录、服务费统计
-- 财务管理：收款/退款/提现/余额变动/冻结资金、收入统计
-- 运营管理：分类/标签、公告、帮助中心、Banner、首页推荐
-- 日志审计：用户操作、订单操作、资金操作
-
----
-
-## 5. 一期开发范围（MVP）
-- 必做：注册/登录、商品发布与审核、商品列表/详情、下单与担保流程、验机确认、放款、后台用户/商品/订单管理、举报/纠纷处理、财务记录、通知系统
-- 暂缓到二期：议价、求购、寄售、卖家信用等级、自动风控规则引擎、深度第三方支付对接、智能推荐
-
----
-
-## 6. 推荐技术方案
-- 前端：Next.js + TypeScript（可配 Tailwind、Zod/React Hook Form、Zustand/Redux）
-- 后端：NestJS + Prisma/TypeORM，JWT + RBAC，Redis（缓存/验证码/限流）
-- 数据库：PostgreSQL（或 MySQL）
-- 存储：本地 / OSS / S3
-- 任务：Cron/队列（自动确认、超时取消、提醒、放款、提现）
-- 监控与日志：操作审计、异常监控、性能指标
-
----
-
-## 7. 目录建议（当前已采用 Monorepo）
+### 2. 安装与初始化
 ```bash
-Server-Psuh-Platform/
-├── apps/
-│   ├── api/    # 后端服务（NestJS）
-│   └── web/    # 前台站点（Next.js）
-├── packages/
-│   └── shared/ # DTO 与通用类型
-├── docs/       # 架构与接口文档
-├── .env.example
-├── package.json
-├── pnpm-workspace.yaml
-└── turbo.json
+pnpm install
+cp .env.example .env
+
+# 生成 Prisma Client
+pnpm --filter @idc/api prisma:generate
+
+# 执行迁移（开发环境）
+pnpm --filter @idc/api prisma:migrate -- --name init
+
+# 可选：导入演示数据
+pnpm --filter @idc/api prisma:seed
+```
+
+### 3. 启动项目
+```bash
+pnpm dev
+```
+
+默认地址：
+- Web：`http://localhost:3001`
+- API：`http://localhost:4000/api/v1`
+- Swagger：`http://localhost:4000/api/docs`
+
+---
+
+## 宝塔 / Linux 临时部署（当前实战方案）
+
+> 适用于你现在的部署方式（PM2 常驻进程）。
+
+### 1. 准备环境
+```bash
+# 进入项目目录
+cd /www/wwwroot/idc.qaqmax.xyz
+
+# 启用 pnpm（若提示 pnpm 不存在）
+corepack enable
+corepack prepare pnpm@9.0.0 --activate
+```
+
+### 2. 安装依赖 + 构建
+```bash
+pnpm install
+pnpm --filter @idc/api prisma:generate
+pnpm --filter @idc/api build
+pnpm --filter @idc/web build
+```
+
+### 3. 数据库迁移与种子（按需）
+```bash
+pnpm --filter @idc/api prisma:migrate -- --name init
+pnpm --filter @idc/api prisma:seed
+```
+
+### 4. PM2 启动
+```bash
+pm2 start "pnpm --filter @idc/api start" --name idc-api
+pm2 start "pnpm --filter @idc/web start" --name idc-web
+
+pm2 save
+pm2 startup
+```
+
+### 5. 健康检查
+```bash
+curl http://127.0.0.1:4000/api/v1/health
+curl -I http://127.0.0.1:3001
+pm2 status
 ```
 
 ---
 
-## 8. 当前进度（2026-03-18）
-已完成从“脚手架”到“可本地演示 + 可管理运营”的交易闭环，核心模块如下：
+## 测试账号（seed 后可用）
 
-- 认证与账号安全：注册/登录、邮箱验证码、找回/重置密码、登录日志与异地登录提醒。
-- 账号安全增强：修改密码、MFA（TOTP）启用/停用/登录二次校验、全局限流。
-- 用户中心：`/user/me`、实名认证（KYC）提审与管理员审核流转。
-- 用户交互能力：收藏、浏览历史、价格提醒。
-- 商品中心：商品发布/编辑/提交审核/上下架、商品列表与详情、卖家信用展示。
-- 订单履约：下单、支付、交付、平台核验、买家验机确认、订单时间线。
-- 订单管理增强：买家取消订单、管理员强制完成订单。
-- 支付与托管：余额支付、Webhook 回调验签、托管冻结/解冻/放款、退款与纠纷仲裁。
-- 钱包与提现：余额/冻结/流水、提现申请、管理员审核与打款状态流转。
-- 通知中心：用户通知列表/未读/已读，管理员单发与全站广播，通知模板管理，邮件/Telegram 通道预留。
-- 管理后台：用户管理、商品审核、订单核验、结算放款、退款审核、纠纷仲裁、提现审核、运营看板。
-- 管理审计：管理员操作日志（AdminLog）查询。
-- 定时任务：未支付自动取消、验机超时自动确认、待结算自动放款。
-- 定时任务增强：价格提醒巡检任务。
-- 工程能力：Swagger 文档、Jest 单测覆盖（Order/Auth/Wallet/UserInteraction）、CI 工作流、Docker 化部署、开发日志持续记录（`docs/dev-notes.md`）。
+默认密码：`12345678`  
+可通过环境变量 `SEED_DEMO_PASSWORD` 覆盖。
 
-### 本地访问地址
-- 前端：`http://localhost:3000`
-- API：`http://localhost:4000/api/v1`
-- Swagger：`http://localhost:4000/api/docs`
+- `admin@example.com`（管理员）
+- `user@example.com`（普通用户）
+- `buyer@example.com`（普通用户）
+- `ops@example.com`（普通用户）
+- `pending.user@example.com`（未验证场景）
+- `rejected.user@example.com`（审核拒绝场景）
+- `banned.user@example.com`（封禁场景）
 
-### 示例账号（seed）
-执行 `pnpm --filter @idc/api prisma:seed` 后可用：
-- 普通用户：`user@example.com` / `12345678`
-- 管理员：`admin@example.com` / `12345678`
+---
 
-> 可通过环境变量 `SEED_DEMO_PASSWORD` 覆盖默认密码。
+## 常见问题排查
 
-### 当前待完善（下一阶段）
-1) 支付渠道实接（支付宝/微信真实网关）与对账任务。
-2) 风控规则引擎与可配置化策略（限额、黑名单、异常行为联动）。
-3) 自动化测试继续扩面（支付回调、通知模板、管理员审计、前端关键页面）。
-4) 生产化部署细节（监控告警、备份恢复、灰度发布）。
+### 1) 登录提示 `Failed to fetch`
+先看浏览器控制台是否有：
+- `ERR_SSL_VERSION_OR_CIPHER_MISMATCH`
 
-<img width="1892" height="926" alt="image" src="https://github.com/user-attachments/assets/f2133c04-4eb4-42bc-bd37-713196510f02" />
-<img width="1890" height="910" alt="image" src="https://github.com/user-attachments/assets/c6eff1c8-6812-41d8-8e42-cb7d12449fc4" />
-<img width="1896" height="922" alt="image" src="https://github.com/user-attachments/assets/b308e322-0dfc-499a-a118-108fd982d6ef" />
-<img width="1899" height="935" alt="image" src="https://github.com/user-attachments/assets/8875030d-8199-45c2-a716-c87fd103aff3" />
-<img width="1885" height="961" alt="image" src="https://github.com/user-attachments/assets/bbc0836c-f79e-4d33-8f50-1d6837dd4c39" />
-<img width="1888" height="950" alt="image" src="https://github.com/user-attachments/assets/0e360afe-5622-482e-a2a4-7829b83371f8" />
-<img width="1902" height="912" alt="image" src="https://github.com/user-attachments/assets/dff5b270-6e68-4dc6-89dc-78b393ce74bd" />
+这通常不是账号问题，而是 **前端请求的 API 域名 HTTPS 配置异常**（证书/TLS 协议错误）。
 
+检查项：
+1. `NEXT_PUBLIC_API_BASE` 是否配置为正确可访问地址  
+2. 反向代理是否把 API 域名正确转发到 `127.0.0.1:4000`  
+3. API 域名证书是否有效，TLS 协议是否开启正常  
+4. `curl https://你的-api域名/api/v1/health` 是否可通
+
+### 2) API 启动后健康检查失败
+如果启动日志后手动按了 `Ctrl+C`，进程会退出，`curl` 自然失败。  
+生产环境请用 PM2 常驻，不要前台直接跑。
+
+### 3) `pnpm: command not found`
+```bash
+corepack enable
+corepack prepare pnpm@9.0.0 --activate
+```
+
+---
+
+## 关键环境变量
+
+- 基础：`DATABASE_URL`、`REDIS_URL`
+- 认证：`JWT_SECRET`、`JWT_EXPIRES`、`AUTH_CODE_SECRET`
+- 交易：`ORDER_*`
+- 提现：`WITHDRAW_*`
+- 支付回调：`PAY_WEBHOOK_SECRET_*`、`PAY_WEBHOOK_MAX_SKEW`
+- 前端：`NEXT_PUBLIC_API_BASE`
+
+完整示例见：[`.env.example`](./.env.example)
+
+---
+
+## 项目结构
+
+```bash
+apps/
+  api/    # NestJS 后端
+  web/    # Next.js 前端
+packages/
+  shared/ # 共享类型与 DTO
+docs/
+  architecture.md
+  dev-notes.md
+```
+
+---
+
+## 效果截图
+
+> 以下为当前项目页面示意（可继续替换为你最新截图）。
+
+![首页](https://github.com/user-attachments/assets/f2133c04-4eb4-42bc-bd37-713196510f02)
+![交易市场/详情](https://github.com/user-attachments/assets/c6eff1c8-6812-41d8-8e42-cb7d12449fc4)
+![订单/流程](https://github.com/user-attachments/assets/b308e322-0dfc-499a-a118-108fd982d6ef)
+![后台控制台](https://github.com/user-attachments/assets/8875030d-8199-45c2-a716-c87fd103aff3)
+
+---
+
+## 开发记录
+
+- 详细开发日志见：[docs/dev-notes.md](./docs/dev-notes.md)
+- 架构与模型见：[docs/architecture.md](./docs/architecture.md)
